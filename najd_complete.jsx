@@ -853,7 +853,7 @@ export default function App() {
       };
       fetchData();
     }
-  }, []);
+  }, [user]);
 
   useEffect(() => {
     localStorage.setItem('najd_players', JSON.stringify(players));
