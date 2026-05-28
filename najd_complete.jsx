@@ -1162,7 +1162,7 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
       {tab === "teams"     && <AdminTeams groups={groups} setGroups={setGroups} coaches={coaches} players={players} t={t} />}
       {tab === "attendance" && <AdminAttendance groups={groups} players={players} coaches={coaches} attendance={attendance} setAttendance={setAttendance} coachesAttendance={coachesAttendance} setCoachesAttendance={setCoachesAttendance} t={t} />}
       {tab === "coaches"   && <AdminCoaches coaches={coaches} setCoaches={setCoaches} groups={groups} players={players} payments={payments} t={t} />}
-      {tab === "players"   && <AdminPlayers players={players} setPlayers={setPlayers} groups={groups} parents={parents} evals={evals} t={t} />}
+      {tab === "players"   && <AdminPlayers players={players} setPlayers={setPlayers} groups={groups} parents={parents} evals={evals} coaches={coaches} t={t} />}
       {tab === "payments"  && <AdminPayments payments={payments} setPayments={setPayments} players={players} coaches={coaches} prices={prices} t={t} />}
       {tab === "prices"    && <AdminPrices prices={prices} setPrices={setPrices} t={t} />}
       {tab === "schedule"  && <AdminTrainings trainings={trainings} setTrainings={setTrainings} groups={groups} coaches={coaches} t={t} />}
@@ -1656,7 +1656,7 @@ function AdminCoaches({ coaches, setCoaches, groups, players, payments, t }) {
 }
 
 /* ── Admin Players ──────────────────────────────────── */
-function AdminPlayers({ players, setPlayers, groups, parents, evals, t }) {
+function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t }) {
   const [sel, setSel]   = useState(null);
   const [modal, setModal] = useState(false);
   const [search, setSearch] = useState("");
@@ -1693,38 +1693,55 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, t }) {
               ["المجموعة", g?.name || "—"],
               ["ولي الأمر", par?.name || "—"],
               ["إيميل الدخول", par?.email || p.email || "—"],
-              ["كلمة المرور", (p.parentId && String(p.parentId).startsWith('par_')) ? (p.password || `najd_${p.phone?.slice(-4)}`) : "كلمة مرور ولي الأمر الحالية"]
+              ["كلمة المرور", par?.password || p.password || (p.phone ? `najd_${p.phone.slice(-4)}` : "كلمة مرور ولي الأمر الحالية")]
             ].map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${t.border}`, fontSize: 12 }}>
                 <span style={{ color: t.textDim }}>{k}</span>
                 <span style={{ fontWeight: 600, color: (k === "كلمة المرور" && v !== "كلمة مرور ولي الأمر الحالية") ? "#D8A435" : k === "إيميل الدخول" ? "#06B6D4" : t.text, fontFamily: k === "كلمة المرور" ? "monospace" : undefined, fontSize: k === "كلمة المرور" ? 11 : 12 }}>{v}</span>
               </div>
             ))}
-            <Btn style={{ width: "100%", marginTop: 14 }} onClick={() => { setForm({ ...p }); setModal("edit"); }}>
+            <Btn style={{ width: "100%", marginTop: 14 }} onClick={() => { setForm({ ...p, email: par?.email || "", password: par?.password || "" }); setModal("edit"); }}>
               <AnimIcon type="edit" size={14} color="#fff" /> تعديل
             </Btn>
           </Card>
-          <Card t={t} style={{ padding: 22 }}>
-            <div style={{ fontWeight: 700, fontSize: 13, color: t.text, marginBottom: 16 }}>📊 المهارات</div>
-            {lastEval ? (
-              <div>
-                <SkillBar label="السرعة"         val={lastEval.speed}     color="#06B6D4" t={t}/>
-                <SkillBar label="التقنية"        val={lastEval.technique} color="#7C49A8" t={t}/>
-                <SkillBar label="العمل الجماعي" val={lastEval.teamwork}  color="#F59E0B" t={t}/>
-                <div style={{ marginTop: 18 }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>
-                    <span style={{ color: t.textDim }}>التقييم الكلي</span>
-                    <span style={{ fontWeight: 800, color: p.score > 80 ? "#10B981" : p.score > 60 ? "#F59E0B" : "#EF4444" }}>{p.score}/100</span>
-                  </div>
-                  <div style={{ height: 8, background: t.border, borderRadius: 4 }}>
-                    <div style={{ height: "100%", borderRadius: 4, background: `linear-gradient(90deg,${p.score > 80 ? "#10B981" : p.score > 60 ? "#F59E0B" : "#EF4444"},transparent)`, width: `${p.score}%` }}/>
+          <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <Card t={t} style={{ padding: 22 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: t.text, marginBottom: 16 }}>📊 المهارات</div>
+              {lastEval ? (
+                <div>
+                  <SkillBar label="السرعة"         val={lastEval.speed}     color="#06B6D4" t={t}/>
+                  <SkillBar label="التقنية"        val={lastEval.technique} color="#7C49A8" t={t}/>
+                  <SkillBar label="العمل الجماعي" val={lastEval.teamwork}  color="#F59E0B" t={t}/>
+                  <div style={{ marginTop: 18 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, marginBottom: 6 }}>
+                      <span style={{ color: t.textDim }}>التقييم الكلي</span>
+                      <span style={{ fontWeight: 800, color: p.score > 80 ? "#10B981" : p.score > 60 ? "#F59E0B" : "#EF4444" }}>{p.score}/100</span>
+                    </div>
+                    <div style={{ height: 8, background: t.border, borderRadius: 4 }}>
+                      <div style={{ height: "100%", borderRadius: 4, background: `linear-gradient(90deg,${p.score > 80 ? "#10B981" : p.score > 60 ? "#F59E0B" : "#EF4444"},transparent)`, width: `${p.score}%` }}/>
+                    </div>
                   </div>
                 </div>
-              </div>
-            ) : (
-              <div style={{ textAlign: "center", color: t.textFaint, padding: "30px 0", fontSize: 13 }}>لم يتم تقييم مهارات اللاعب بعد</div>
-            )}
-          </Card>
+              ) : (
+                <div style={{ textAlign: "center", color: t.textFaint, padding: "30px 0", fontSize: 13 }}>لم يتم تقييم مهارات اللاعب بعد</div>
+              )}
+            </Card>
+            <Card t={t} style={{ padding: 22 }}>
+              <div style={{ fontWeight: 700, fontSize: 13, color: t.text, marginBottom: 16 }}>📝 حالة التقييم والملاحظات</div>
+              {lastEval ? (
+                <div>
+                  <div style={{ fontSize: 11, color: t.textDim, marginBottom: 8 }}>
+                    آخر تقييم بتاريخ: {lastEval.date} · بواسطة الكابتن {coaches?.find(c => c.id === lastEval.coachId)?.name || "طاقم التدريب"}
+                  </div>
+                  <div style={{ fontSize: 14, color: t.textMid, lineHeight: 1.6 }}>
+                    "{lastEval.note || "لا توجد ملاحظات إضافية."}"
+                  </div>
+                </div>
+              ) : (
+                <div style={{ textAlign: "center", color: t.textFaint, padding: "20px 0", fontSize: 12 }}>لا توجد ملاحظات تقييمية مسجلة بعد</div>
+              )}
+            </Card>
+          </div>
         </div>
         {modal && (
           <Modal title="تعديل بيانات اللاعب" onClose={() => setModal(null)} wide t={t}>
@@ -2404,10 +2421,10 @@ function CoachHome({ coach, group, groups, myPlayers, attendance, evals, trainin
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
             {myPlayers.map((p, i) => {
-              const lastEval = evals.filter(e => e.playerId === p.id && e.coachId === coach.id).slice(-1)[0];
+              const lastEval = evals.filter(e => e.playerId === p.id).slice(-1)[0];
               return (
                 <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: i < myPlayers.length - 1 ? `1px solid ${t.border}` : "none" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
                     <Avatar name={p.name} size={32} color="#06B6D4"/>
                     <div>
                       <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{p.name}</div>
@@ -2416,11 +2433,11 @@ function CoachHome({ coach, group, groups, myPlayers, attendance, evals, trainin
                   </div>
                   <div style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#F59E0B", textAlign: "left" }}>{lastEval?.technique || p.technique || "—"}</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#F59E0B", textAlign: "left" }}>{lastEval ? lastEval.technique : "—"}</div>
                       <div style={{ fontSize: 10, color: t.textDim }}>تقنية</div>
                     </div>
                     <div>
-                      <div style={{ fontSize: 13, fontWeight: 800, color: "#10B981", textAlign: "left" }}>{lastEval?.speed || p.speed || "—"}</div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#10B981", textAlign: "left" }}>{lastEval ? lastEval.speed : "—"}</div>
                       <div style={{ fontSize: 10, color: t.textDim }}>سرعة</div>
                     </div>
                   </div>

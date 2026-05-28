@@ -71,7 +71,8 @@ app.get('/api/initial-data', async (req, res) => {
       userId: par.userId,
       name: par.user?.name || `ولي أمر`,
       email: par.user?.email || '',
-      phone: par.user?.phone || ''
+      phone: par.user?.phone || '',
+      password: par.user?.password || ''
     }));
 
     res.json({
