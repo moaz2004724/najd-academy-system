@@ -190,27 +190,31 @@ app.post('/api/players', async (req, res) => {
 app.post('/api/payments', async (req, res) => {
   try {
     const { id, playerId, playerName, coachId, coachName, type, month, amount, date, note } = req.body;
-    const updateData = { 
-      playerName, coachName, type, month, amount, 
-      date: new Date(date), note 
-    };
-    if (playerId) updateData.player = { connect: { id: playerId } };
-    else updateData.player = { disconnect: true };
-
-    if (coachId) updateData.coach = { connect: { id: coachId } };
-    else updateData.coach = { disconnect: true };
-
-    const createData = { 
-      id, playerName, coachName, type, month, amount, 
-      date: new Date(date), note 
-    };
-    if (playerId) createData.player = { connect: { id: playerId } };
-    if (coachId) createData.coach = { connect: { id: coachId } };
-
     const payment = await prisma.payment.upsert({
       where: { id: id || 'new' },
-      update: updateData,
-      create: createData
+      update: { 
+        playerId, 
+        playerName, 
+        coachId, 
+        coachName, 
+        type, 
+        month, 
+        amount, 
+        date: new Date(date), 
+        note 
+      },
+      create: { 
+        id, 
+        playerId, 
+        playerName, 
+        coachId, 
+        coachName, 
+        type, 
+        month, 
+        amount, 
+        date: new Date(date), 
+        note 
+      }
     });
     res.json(payment);
   } catch (e) {
