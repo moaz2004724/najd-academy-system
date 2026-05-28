@@ -767,6 +767,8 @@ export default function App() {
 
   const [syncStatus, setSyncStatus] = useState("synced"); // 'synced', 'syncing', 'error'
   const [lastUpdate, setLastUpdateState] = useState(() => parseInt(localStorage.getItem('najd_last_update') || '0'));
+  const [lastLocalWrite, setLastLocalWrite] = useState(0);
+  const markLocalWrite = () => setLastLocalWrite(Date.now());
 
   const setLastUpdate = (val) => {
     const time = val !== undefined ? val : Date.now();
@@ -776,6 +778,7 @@ export default function App() {
 
   const syncWithAPI = async (table, item, isDeleted = false) => {
     if (!API_URL) return;
+    markLocalWrite();
     setSyncStatus("syncing");
     try {
       const endpointMap = {
@@ -818,42 +821,50 @@ export default function App() {
     else localStorage.removeItem('najd_logged_user');
   }, [user]);
 
-  // Fetch from API if configured
+  // Fetch from API if configured (with automatic background polling every 6s)
   useEffect(() => {
-    if (API_URL) {
-      const fetchData = async () => {
-        try {
-          const res = await fetch(`${API_URL}/api/initial-data`);
-          const data = await res.json();
-          if (data.players) {
-            // Auto-repair missing logins/data for display
-            const repaired = data.players.map(p => {
-              if (p.email && p.password) return p;
-              const phone = p.phone || "0500000000";
-              return { 
-                ...p, 
-                email: p.email || `najd_${phone}@najd.sa`,
-                password: p.password || `najd_${phone.slice(-4)}`
-              };
-            });
-            setPlayers(repaired);
-          }
-          if (data.coaches) setCoaches(data.coaches);
-          if (data.groups) setGroups(data.groups);
-          if (data.payments) setPayments(data.payments);
-          if (data.attendance) setAttendance(data.attendance);
-          if (data.coachesAttendance) setCoachesAttendance(data.coachesAttendance);
-          if (data.evals) setEvals(data.evals);
-          if (data.messages) setMessages(data.messages);
-          if (data.trainings) setTrainings(data.trainings);
-          if (data.parents) setParents(data.parents);
-        } catch (e) {
-          console.error("API Fetch Error:", e);
+    if (!API_URL) return;
+
+    const fetchData = async () => {
+      // Skip background update if we are actively syncing or a local write occurred in the last 3 seconds
+      if (syncStatus === "syncing" || Date.now() - lastLocalWrite < 3000) {
+        return;
+      }
+      try {
+        const res = await fetch(`${API_URL}/api/initial-data`);
+        const data = await res.json();
+        if (data.players) {
+          // Auto-repair missing logins/data for display
+          const repaired = data.players.map(p => {
+            if (p.email && p.password) return p;
+            const phone = p.phone || "0500000000";
+            return { 
+              ...p, 
+              email: p.email || `najd_${phone}@najd.sa`,
+              password: p.password || `najd_${phone.slice(-4)}`
+            };
+          });
+          setPlayers(repaired);
         }
-      };
-      fetchData();
-    }
-  }, [user]);
+        if (data.coaches) setCoaches(data.coaches);
+        if (data.groups) setGroups(data.groups);
+        if (data.payments) setPayments(data.payments);
+        if (data.attendance) setAttendance(data.attendance);
+        if (data.coachesAttendance) setCoachesAttendance(data.coachesAttendance);
+        if (data.evals) setEvals(data.evals);
+        if (data.messages) setMessages(data.messages);
+        if (data.trainings) setTrainings(data.trainings);
+        if (data.parents) setParents(data.parents);
+      } catch (e) {
+        console.error("API Fetch Error:", e);
+      }
+    };
+
+    fetchData();
+
+    const interval = setInterval(fetchData, 6000);
+    return () => clearInterval(interval);
+  }, [user, syncStatus, lastLocalWrite]);
 
   useEffect(() => {
     localStorage.setItem('najd_players', JSON.stringify(players));
@@ -2989,9 +3000,65 @@ function Messaging({ messages, setMessages, meId, meName, coaches, parents, t, r
   const [compose, setCompose] = useState(false);
   const [form, setForm] = useState({ to: [], text: "", files: [] });
   const [filterType, setFilterType] = useState("all");
-  
-  const mine = messages.filter(m => m.from === meId || m.to === meId).slice().reverse();
+  const [activePartnerId, setActivePartnerId] = useState(null);
+  const [chatText, setChatText] = useState("");
+  const chatEndRef = useRef(null);
+
+  const mine = (messages || []).filter(m => m.from === meId || m.to === meId);
   const markRead = id => setMessages(ms => ms.map(m => m.id === id ? { ...m, read: true } : m));
+
+  // Auto-scroll to bottom of chat
+  useEffect(() => {
+    if (chatEndRef.current) {
+      chatEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [activePartnerId, messages]);
+
+  // Mark incoming messages as read when chat is open
+  useEffect(() => {
+    if (activePartnerId) {
+      mine.forEach(m => {
+        if (m.from === activePartnerId && m.to === meId && !m.read) {
+          markRead(m.id);
+        }
+      });
+    }
+  }, [activePartnerId, messages]);
+
+  // Group messages into WhatsApp-style conversations
+  const conversationsMap = {};
+  mine.forEach(m => {
+    const partnerId = m.from === meId ? m.to : m.from;
+    const partnerName = m.from === meId ? m.toName : m.fromName;
+    
+    if (!conversationsMap[partnerId]) {
+      conversationsMap[partnerId] = {
+        partnerId,
+        partnerName,
+        messages: [],
+        lastMessage: m,
+        unreadCount: 0
+      };
+    }
+    
+    conversationsMap[partnerId].messages.push(m);
+    
+    const currentLastDate = new Date(conversationsMap[partnerId].lastMessage.date || 0);
+    const msgDate = new Date(m.date || 0);
+    if (msgDate >= currentLastDate) {
+      conversationsMap[partnerId].lastMessage = m;
+    }
+
+    if (m.to === meId && !m.read) {
+      conversationsMap[partnerId].unreadCount++;
+    }
+  });
+
+  const sortedConversations = Object.values(conversationsMap).sort((a, b) => {
+    const dateA = new Date(a.lastMessage.date || 0);
+    const dateB = new Date(b.lastMessage.date || 0);
+    return dateB - dateA;
+  });
 
   const send = () => {
     if (!form.to.length || !form.text.trim()) return;
@@ -3000,8 +3067,8 @@ function Messaging({ messages, setMessages, meId, meName, coaches, parents, t, r
       let targetName = "";
       if (targetId === "admin") targetName = "الإدارة";
       else {
-        const c = coaches.find(x => x.id === targetId);
-        const p = parents.find(x => x.id === targetId);
+        const c = (coaches || []).find(x => x.id === targetId);
+        const p = (parents || []).find(x => x.id === targetId);
         targetName = c?.name || p?.name || "مستخدم";
       }
 
@@ -3034,21 +3101,48 @@ function Messaging({ messages, setMessages, meId, meName, coaches, parents, t, r
     alert("تم إرسال الرسائل بنجاح");
   };
 
+  const sendQuickMessage = () => {
+    if (!chatText.trim() || !activePartnerId) return;
+
+    const partnerConv = conversationsMap[activePartnerId];
+    const targetName = partnerConv ? partnerConv.partnerName : "مستخدم";
+
+    const newMsg = {
+      id: `msg${Date.now()}-${activePartnerId}`,
+      from: meId,
+      fromName: meName,
+      to: activePartnerId,
+      toName: targetName,
+      text: chatText.trim(),
+      files: [],
+      date: new Date().toISOString().split("T")[0],
+      read: false
+    };
+
+    if (API_URL) {
+      fetch(`${API_URL}/api/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newMsg)
+      }).catch(console.error);
+    }
+
+    setMessages(ms => [...ms, newMsg]);
+    setChatText("");
+  };
+
   // Role-based Contact Filtering
   let filteredContacts = [
     { id: "admin", name: "الإدارة", type: "admin" },
-    ...coaches.map(c => ({ id: c.id, name: c.name, type: "coach", groupId: c.groupId })),
-    ...parents.map(p => ({ id: p.id, name: p.name, type: "parent" })),
+    ...(coaches || []).map(c => ({ id: c.id, name: c.name, type: "coach", groupId: c.groupId })),
+    ...(parents || []).map(p => ({ id: p.id, name: p.name, type: "parent" })),
   ].filter(c => c.id !== meId);
 
   if (role === "parent") {
-    // Parent can only message Admin and their child's Coach
     const safeCoachIds = myCoachIds || [];
     filteredContacts = filteredContacts.filter(c => c.type === "admin" || (c.type === "coach" && safeCoachIds.includes(c.id)));
   } else if (role === "coach") {
-    // Coach can message Admin and Parents in their group
-    // Find all parents of players in my group
-    const myGroupPlayerIds = players.filter(p => p.groupId === myGroupId).map(p => p.parentId);
+    const myGroupPlayerIds = (players || []).filter(p => p.groupId === myGroupId).map(p => p.parentId);
     filteredContacts = filteredContacts.filter(c => c.type === "admin" || (c.type === "parent" && myGroupPlayerIds.includes(c.id)));
   }
 
@@ -3066,60 +3160,166 @@ function Messaging({ messages, setMessages, meId, meName, coaches, parents, t, r
     setForm(f => ({ ...f, to: ids }));
   };
 
+  const getPartnerDisplay = (partnerId, partnerName) => {
+    if (partnerId === "admin") return { type: "إدارة", color: "#7C49A8" };
+    const isCoach = (coaches || []).some(c => c.id === partnerId);
+    if (isCoach) return { type: "مدرب", color: "#06B6D4" };
+    return { type: "ولي أمر", color: "#10B981" };
+  };
+
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-        <div style={{ fontSize: 12, color: t.textDim }}>{mine.length} رسالة</div>
+        <div style={{ fontSize: 12, color: t.textDim }}>{sortedConversations.length} محادثة نشطة</div>
         <Btn onClick={() => setCompose(true)} style={{ padding: "10px 22px", borderRadius: 12 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <span style={{ animation: "spin 3s linear infinite", display: "inline-block" }}>✉️</span>
-            <span>رسالة احترافية جديدة</span>
+            <span style={{ display: "inline-block" }}>✉️</span>
+            <span>إنشاء رسالة جديدة</span>
           </div>
         </Btn>
       </div>
 
+      {/* Conversations List */}
       <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-        {mine.map((m, i) => {
-          const isMe  = m.from === meId;
-          const unread = m.to === meId && !m.read;
+        {sortedConversations.map((conv, i) => {
+          const display = getPartnerDisplay(conv.partnerId, conv.partnerName);
+          const hasUnread = conv.unreadCount > 0;
           return (
-            <div key={m.id} onClick={() => unread && markRead(m.id)}
-              style={{ background: unread ? t.name === "dark" ? "linear-gradient(135deg,#13111F,#0A0815)" : "#F5F0FF" : t.bg2, border: `1px solid ${unread ? "rgba(124,73,168,.4)" : t.border}`, borderRadius: 18, padding: "18px 22px", cursor: unread ? "pointer" : "default", transition: "all .2s", animation: `fadeUp .4s ${i * .05}s ease both`, boxShadow: unread ? "0 10px 25px rgba(124,73,168,.1)" : "none" }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 12 }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <Avatar name={isMe ? m.toName : m.fromName} size={36} color={isMe ? "#10B981" : "#7C49A8"}/>
-                  <div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: isMe ? t.textDim : t.text }}>{isMe ? `إلى: ${m.toName}` : `من: ${m.fromName}`}</div>
-                    <div style={{ fontSize: 10, color: t.textFaint, marginTop: 2 }}>{m.date}</div>
+            <div key={conv.partnerId} onClick={() => setActivePartnerId(conv.partnerId)}
+              style={{ 
+                background: hasUnread ? (t.name === "dark" ? "rgba(124,73,168,.08)" : "#F5F0FF") : t.bg2, 
+                border: `1px solid ${hasUnread ? "rgba(124,73,168,.4)" : t.border}`, 
+                borderRadius: 18, 
+                padding: "16px 20px", 
+                cursor: "pointer", 
+                transition: "all .2s", 
+                boxShadow: hasUnread ? "0 5px 15px rgba(124,73,168,.05)" : "none",
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center"
+              }}
+              onMouseEnter={e => e.currentTarget.style.transform = "translateY(-2px)"}
+              onMouseLeave={e => e.currentTarget.style.transform = "none"}>
+              
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flex: 1, minWidth: 0 }}>
+                <Avatar name={conv.partnerName} size={42} color={display.color}/>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 14, fontWeight: 800, color: t.text }}>{conv.partnerName}</span>
+                    <Chip text={display.type} color={display.color} size={9}/>
+                  </div>
+                  <div style={{ fontSize: 12, color: hasUnread ? t.text : t.textDim, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", width: "90%" }}>
+                    {conv.lastMessage.from === meId ? "أنت: " : ""}{conv.lastMessage.text}
                   </div>
                 </div>
-                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-                  {isMe && <Chip text="مُرسلة" color={t.textFaint} size={10}/>}
-                  {unread && <div style={{ width: 10, height: 10, borderRadius: "50%", background: "#7C49A8", animation: "pulse 2s infinite" }}/>}
-                </div>
               </div>
-              <div style={{ fontSize: 14, color: t.textMid, lineHeight: 1.8, background: t.bg, borderRadius: 12, padding: "14px 18px", border: `1px solid ${t.border}` }}>
-                {m.text}
-                {m.files?.length > 0 && (
-                  <div style={{ marginTop: 12, borderTop: `1px solid ${t.border}`, paddingTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    {m.files.map((f, fi) => (
-                      <div key={fi} style={{ background: t.bg2, padding: "6px 12px", borderRadius: 8, fontSize: 11, border: `1px solid ${t.border}`, display: "flex", alignItems: "center", gap: 6 }}>
-                        📎 {f.name}
-                      </div>
-                    ))}
+
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6 }}>
+                <span style={{ fontSize: 10, color: t.textFaint }}>{conv.lastMessage.date}</span>
+                {hasUnread && (
+                  <div style={{ background: "#7C49A8", color: "#fff", minWidth: 18, height: 18, borderRadius: 9, display: "grid", placeItems: "center", fontSize: 10, fontWeight: 700, padding: "0 5px" }}>
+                    {conv.unreadCount}
                   </div>
                 )}
               </div>
+
             </div>
           );
         })}
-        {mine.length === 0 && (
+        
+        {sortedConversations.length === 0 && (
           <div style={{ padding: 80, textAlign: "center", color: t.textFaint }}>
-            <div style={{ fontSize: 40, marginBottom: 15, animation: "float 3s infinite" }}>📨</div>
-            <div>صندوق الوارد فارغ حالياً</div>
+            <div style={{ fontSize: 40, marginBottom: 15 }}>📨</div>
+            <div>لا توجد محادثات نشطة حالياً. ابدأ بإرسال رسالة جديدة.</div>
           </div>
         )}
       </div>
+
+      {/* WhatsApp Chat Modal */}
+      {activePartnerId && (() => {
+        const conv = conversationsMap[activePartnerId];
+        const partnerName = conv ? conv.partnerName : "محادثة";
+        const display = getPartnerDisplay(activePartnerId, partnerName);
+        const chatMsgs = conv ? conv.messages.slice().reverse() : [];
+
+        return (
+          <Modal title="" onClose={() => setActivePartnerId(null)} wide t={t} footer={null} style={{ padding: 0 }}>
+            {/* Header */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${t.border}`, padding: "16px 20px", background: t.bg2, borderTopLeftRadius: 18, borderTopRightRadius: 18 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <Avatar name={partnerName} size={40} color={display.color}/>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: t.text }}>{partnerName}</div>
+                  <div style={{ fontSize: 10, color: display.color, fontWeight: 700 }}>{display.type}</div>
+                </div>
+              </div>
+              <button onClick={() => setActivePartnerId(null)} style={{ background: "transparent", border: "none", color: t.textDim, fontSize: 18, cursor: "pointer", marginRight: "auto" }}>✕</button>
+            </div>
+
+            {/* Chat Messages Body */}
+            <div style={{ height: 350, overflowY: "auto", padding: 20, background: t.name === "dark" ? "#0A0812" : "#F8F6FC", display: "flex", flexDirection: "column", gap: 14 }}>
+              {chatMsgs.map(m => {
+                const isMe = m.from === meId;
+                return (
+                  <div key={m.id} style={{ display: "flex", justifyContent: isMe ? "flex-end" : "flex-start", width: "100%" }}>
+                    <div style={{ 
+                      maxWidth: "75%", 
+                      background: isMe ? (t.name === "dark" ? "linear-gradient(135deg,#7C49A8,#5A2D82)" : "#7C49A8") : (t.name === "dark" ? "#1B172C" : "#fff"), 
+                      color: isMe ? "#fff" : t.text, 
+                      borderRadius: 16, 
+                      borderTopRightRadius: isMe ? 4 : 16,
+                      borderTopLeftRadius: isMe ? 16 : 4,
+                      padding: "12px 16px", 
+                      boxShadow: "0 2px 8px rgba(0,0,0,.05)",
+                      border: isMe ? "none" : `1px solid ${t.border}`
+                    }}>
+                      <div style={{ fontSize: 13, lineHeight: 1.6, wordBreak: "break-word" }}>{m.text}</div>
+                      
+                      {m.files?.length > 0 && (
+                        <div style={{ marginTop: 8, borderTop: `1px solid ${isMe ? "rgba(255,255,255,.2)" : t.border}`, paddingTop: 6, display: "flex", gap: 6, flexWrap: "wrap" }}>
+                          {m.files.map((f, fi) => (
+                            <div key={fi} style={{ background: isMe ? "rgba(255,255,255,.15)" : t.bg2, padding: "4px 8px", borderRadius: 6, fontSize: 10, display: "flex", alignItems: "center", gap: 4 }}>
+                              📎 {f.name}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      <div style={{ fontSize: 9, opacity: .7, textAlign: "left", marginTop: 4 }}>{m.date}</div>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Input Footer */}
+            <div style={{ padding: "14px 20px", background: t.bg2, borderBottomLeftRadius: 18, borderBottomRightRadius: 18, display: "flex", gap: 10, alignItems: "center", borderTop: `1px solid ${t.border}` }}>
+              <input type="text" value={chatText} onChange={e => setChatText(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && sendQuickMessage()}
+                placeholder="اكتب رسالتك هنا واضغط Enter للإرسال..."
+                style={{ flex: 1, background: t.inputBg, border: `1px solid ${t.border}`, borderRadius: 12, padding: "12px 16px", color: t.text, fontSize: 13, outline: "none", fontFamily: "'Cairo',sans-serif" }}/>
+              
+              <button onClick={sendQuickMessage} disabled={!chatText.trim()}
+                style={{ 
+                  background: chatText.trim() ? "linear-gradient(135deg,#7C49A8,#5A2D82)" : t.border, 
+                  color: "#fff", 
+                  border: "none", 
+                  width: 44, 
+                  height: 44, 
+                  borderRadius: 12, 
+                  display: "grid", 
+                  placeItems: "center", 
+                  cursor: chatText.trim() ? "pointer" : "default", 
+                  fontSize: 16,
+                  transition: "all .2s"
+                }}>
+                🚀
+              </button>
+            </div>
+          </Modal>
+        );
+      })()}
 
       {compose && (
         <Modal title="✉️ إنشاء رسالة ذكية" onClose={() => setCompose(false)} wide t={t}>
@@ -3131,8 +3331,11 @@ function Messaging({ messages, setMessages, meId, meName, coaches, parents, t, r
                 {/* Section Filters */}
                 <div style={{ display: "flex", background: t.bg, borderRadius: 10, padding: 4, marginBottom: 12, border: `1px solid ${t.border}` }}>
                   <button onClick={() => setFilterType("all")} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: filterType === "all" ? "#7C49A8" : "transparent", color: filterType === "all" ? "#fff" : t.textDim, fontSize: 11, cursor: "pointer", fontWeight: 700 }}>الكل</button>
+                  <button onClick={() => setFilterType("admin")} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: filterType === "admin" ? "#7C49A8" : "transparent", color: filterType === "admin" ? "#fff" : t.textDim, fontSize: 11, cursor: "pointer", fontWeight: 700 }}>الإدارة</button>
                   <button onClick={() => setFilterType("coach")} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: filterType === "coach" ? "#06B6D4" : "transparent", color: filterType === "coach" ? "#fff" : t.textDim, fontSize: 11, cursor: "pointer", fontWeight: 700 }}>المدربين</button>
-                  <button onClick={() => setFilterType("parent")} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: filterType === "parent" ? "#10B981" : "transparent", color: filterType === "parent" ? "#fff" : t.textDim, fontSize: 11, cursor: "pointer", fontWeight: 700 }}>أولياء الأمور</button>
+                  {role !== "parent" && (
+                    <button onClick={() => setFilterType("parent")} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: filterType === "parent" ? "#10B981" : "transparent", color: filterType === "parent" ? "#fff" : t.textDim, fontSize: 11, cursor: "pointer", fontWeight: 700 }}>أولياء الأمور</button>
+                  )}
                 </div>
 
                 <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
