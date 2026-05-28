@@ -128,6 +128,17 @@ app.post('/api/players', async (req, res) => {
       });
 
       resolvedParentId = parent.id;
+    } else {
+      // Parent exists — update User details if provided
+      const updateData = {};
+      if (p.email) updateData.email = p.email;
+      if (p.password) updateData.password = p.password;
+      updateData.name = `ولي أمر ${p.name}`;
+
+      await prisma.user.update({
+        where: { id: existingParent.userId },
+        data: updateData
+      });
     }
 
     // Parse numbers safely to prevent Prisma constraint violations
