@@ -53,17 +53,26 @@ app.post('/api/login', async (req, res) => {
 // --- Generic Fetch Route (To get all state at once) ---
 app.get('/api/initial-data', async (req, res) => {
   try {
-    const [groups, coaches, players, payments, attendance, coachesAttendance, evals, messages, trainings] = await Promise.all([
+    const [groups, coaches, players, payments, attendance, coachesAttendance, evals, messages, trainings, parentsRaw] = await Promise.all([
       prisma.group.findMany(),
       prisma.coach.findMany({ include: { user: true } }),
       prisma.player.findMany(),
       prisma.payment.findMany(),
       prisma.attendance.findMany(),
-      prisma.attendance.findMany({ where: { coachId: { not: null } } }), // Simplified for now
+      prisma.attendance.findMany({ where: { coachId: { not: null } } }),
       prisma.evaluation.findMany(),
       prisma.message.findMany(),
-      prisma.training.findMany()
+      prisma.training.findMany(),
+      prisma.parent.findMany({ include: { user: true } })
     ]);
+
+    const parents = parentsRaw.map(par => ({
+      id: par.id,
+      userId: par.userId,
+      name: par.user?.name || `ولي أمر`,
+      email: par.user?.email || '',
+      phone: par.user?.phone || ''
+    }));
 
     res.json({
       groups,
@@ -80,7 +89,8 @@ app.get('/api/initial-data', async (req, res) => {
       coachesAttendance,
       evals,
       messages,
-      trainings
+      trainings,
+      parents
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -91,44 +101,72 @@ app.get('/api/initial-data', async (req, res) => {
 app.post('/api/players', async (req, res) => {
   const p = req.body;
   try {
-    // 1. Ensure a User exists for the parent login
-    const user = await prisma.user.upsert({
-      where: { email: p.email },
-      update: { password: p.password, name: `ولي أمر ${p.name}` },
-      create: { 
-        email: p.email, 
-        password: p.password, 
-        name: `ولي أمر ${p.name}`, 
-        role: 'PARENT' 
-      }
-    });
+    let resolvedParentId = p.parentId;
 
-    // 2. Ensure a Parent profile exists for that user
-    const parent = await prisma.parent.upsert({
-      where: { userId: user.id },
-      update: {},
-      create: { userId: user.id }
-    });
+    // Check if the incoming parentId already exists in the Parent table
+    const existingParent = p.parentId
+      ? await prisma.parent.findUnique({ where: { id: p.parentId } })
+      : null;
 
-    // 3. Create or update the Player record
-    const player = await prisma.player.upsert({
-      where: { id: p.id || 'new' },
-      update: { 
-        name: p.name, phone: p.phone, age: p.age, status: p.status, 
-        position: p.position, weight: p.weight, height: p.height, 
-        groupId: p.groupId, score: p.score, parentId: parent.id
-      },
-      create: {
-        id: p.id, name: p.name, phone: p.phone, age: p.age, 
-        status: p.status, position: p.position, weight: p.weight, 
-        height: p.height, groupId: p.groupId, parentId: parent.id
-      }
-    });
-    res.json(player);
+    if (!existingParent) {
+      // Parent doesn't exist yet — create User + Parent from player's email/phone
+      const email = p.email || `najd_${p.phone || Date.now()}@najd.sa`;
+      const password = p.password || `najd_${(p.phone || '0000').slice(-4)}`;
+      const parentName = `ولي أمر ${p.name}`;
+
+      const user = await prisma.user.upsert({
+        where: { email },
+        update: { password, name: parentName },
+        create: { email, password, name: parentName, role: 'PARENT' }
+      });
+
+      const parent = await prisma.parent.upsert({
+        where: { userId: user.id },
+        update: {},
+        create: { userId: user.id }
+      });
+
+      resolvedParentId = parent.id;
+    }
+
+    // Create or update the Player record
+    // Safe upsert: try update first, fall back to create
+    let player;
+    const existing = p.id ? await prisma.player.findUnique({ where: { id: p.id } }) : null;
+
+    if (existing) {
+      player = await prisma.player.update({
+        where: { id: p.id },
+        data: {
+          name: p.name, phone: p.phone, age: p.age ? +p.age : null,
+          status: p.status, position: p.position,
+          weight: p.weight ? +p.weight : null,
+          height: p.height ? +p.height : null,
+          groupId: p.groupId, score: p.score ? +p.score : null,
+          parentId: resolvedParentId
+        }
+      });
+    } else {
+      player = await prisma.player.create({
+        data: {
+          id: p.id,
+          name: p.name, phone: p.phone, age: p.age ? +p.age : null,
+          status: p.status || 'نشط', position: p.position,
+          weight: p.weight ? +p.weight : null,
+          height: p.height ? +p.height : null,
+          groupId: p.groupId, score: p.score ? +p.score : 80,
+          parentId: resolvedParentId
+        }
+      });
+    }
+
+    res.json({ ...player, parentId: resolvedParentId });
   } catch (e) {
+    console.error('Player error:', e);
     res.status(500).json({ error: e.message });
   }
 });
+
 
 app.post('/api/payments', async (req, res) => {
   try {

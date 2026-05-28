@@ -761,6 +761,7 @@ export default function App() {
   const [groups, setGroups] = useState(() => JSON.parse(localStorage.getItem('najd_groups') || '[]'));
   const [coaches, setCoaches] = useState(() => JSON.parse(localStorage.getItem('najd_coaches') || '[]'));
   const [players, setPlayers] = useState(() => JSON.parse(localStorage.getItem('najd_players') || '[]'));
+  const [parents, setParents] = useState(() => JSON.parse(localStorage.getItem('najd_parents') || '[]'));
   const [payments, setPayments] = useState(() => JSON.parse(localStorage.getItem('najd_payments') || '[]'));
   const [theme, setTheme] = useState(() => localStorage.getItem('najd_theme') || "dark");
 
@@ -845,6 +846,7 @@ export default function App() {
           if (data.evals) setEvals(data.evals);
           if (data.messages) setMessages(data.messages);
           if (data.trainings) setTrainings(data.trainings);
+          if (data.parents) setParents(data.parents);
         } catch (e) {
           console.error("API Fetch Error:", e);
         }
@@ -857,6 +859,7 @@ export default function App() {
     localStorage.setItem('najd_players', JSON.stringify(players));
     localStorage.setItem('najd_coaches', JSON.stringify(coaches));
     localStorage.setItem('najd_groups', JSON.stringify(groups));
+    localStorage.setItem('najd_parents', JSON.stringify(parents));
     localStorage.setItem('najd_payments', JSON.stringify(payments));
     localStorage.setItem('najd_attendance', JSON.stringify(attendance));
     localStorage.setItem('najd_coachesAttendance', JSON.stringify(coachesAttendance));
@@ -865,7 +868,7 @@ export default function App() {
     localStorage.setItem('najd_prices', JSON.stringify(prices));
     localStorage.setItem('najd_trainings', JSON.stringify(trainings));
     localStorage.setItem('najd_theme', theme);
-  }, [players, coaches, groups, payments, attendance, coachesAttendance, evals, messages, prices, trainings, theme]);
+  }, [players, coaches, groups, parents, payments, attendance, coachesAttendance, evals, messages, prices, trainings, theme]);
 
   const t = THEMES[theme];
 
@@ -940,7 +943,7 @@ export default function App() {
         if (API_URL && Array.isArray(val)) val.forEach(i => syncWithAPI('players', i));
       }
     },
-    parents: (players || []).reduce((acc, p) => {
+    parents: (parents && parents.length > 0) ? parents : (players || []).reduce((acc, p) => {
       if (p && p.parentId && !acc.find(x => String(x.id) === String(p.parentId))) {
         acc.push({ id: p.parentId, name: `ولي أمر ${p.name}`, phone: p.phone, email: p.email });
       }
