@@ -2263,72 +2263,192 @@ function CoachPortal({ user, onLogout, groups, coaches, players, parents, paymen
 function CoachHome({ coach, group, groups, myPlayers, attendance, evals, trainings, t }) {
   const lastAtt = attendance.filter(a => a.coachId === coach.id).slice(-1)[0];
   const avgScore = myPlayers.length ? Math.round(myPlayers.reduce((a, p) => a + p.score, 0) / myPlayers.length) : 0;
-  const myTrainings = trainings.filter(tr => tr.groupId === coach.groupId);
-  const nextTr = myTrainings[0];
+  const myTrainings = (trainings || []).filter(tr => tr.groupId === coach.groupId);
   
+  const currentDayAr = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"][new Date().getDay()];
+  const todayTr = myTrainings.find(tr => tr.days.includes(currentDayAr));
+  const primaryTr = todayTr || myTrainings[0];
+
   return (
-    <div>
-      <Card t={t} style={{ padding: 26, marginBottom: 18, background: t.name === "dark" ? "linear-gradient(135deg,#060A20,#0A1030)" : `linear-gradient(135deg,#EFF8FF,#F0F9FF)`, borderColor: "rgba(6,182,212,.2)" }} className="s1">
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 14 }}>
-          <div>
-            <div style={{ fontSize: 12, color: t.textDim, marginBottom: 6 }}>📅 التدريب القادم</div>
-            <div style={{ fontSize: 20, fontWeight: 800, color: "#06B6D4", marginBottom: 4 }}>{nextTr?.days.join(" و ") || "—"} الساعة {nextTr?.time || "—"}</div>
-            <div style={{ fontSize: 14, color: t.textMid, marginBottom: 10 }}>🏟 {nextTr?.field || "—"} · ⏱ {nextTr?.duration || 0} دقيقة</div>
-            {nextTr?.trainingFocus && (
-              <div style={{ background: "rgba(6,182,212,.1)", border: "1px solid rgba(6,182,212,.2)", borderRadius: 10, padding: "10px 16px", display: "inline-block" }}>
-                <div style={{ fontSize: 11, color: t.textDim, marginBottom: 4 }}>🎯 تركيز التدريب القادم</div>
-                <div style={{ fontSize: 14, fontWeight: 700, color: "#06B6D4" }}>{nextTr.trainingFocus}</div>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* 1. Upcoming Trainings Timeline Card */}
+      {primaryTr && (
+        <Card t={t} style={{ 
+          padding: 24, 
+          background: t.name === "dark" 
+            ? "linear-gradient(135deg, #083344, #111827)" 
+            : "linear-gradient(135deg, #ecfeff, #e0f7fa)", 
+          borderColor: "rgba(6,182,212,0.35)",
+          position: "relative",
+          overflow: "hidden",
+          borderRadius: 20,
+          boxShadow: t.name === "dark" ? "0 10px 30px rgba(0,0,0,0.3)" : "0 10px 30px rgba(6,182,212,0.06)",
+          animation: "scaleIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both"
+        }}>
+          {/* Glowing particle orb */}
+          <div style={{
+            position: "absolute",
+            top: "-30px",
+            left: "-30px",
+            width: "140px",
+            height: "140px",
+            borderRadius: "50%",
+            background: "rgba(6,182,212,0.15)",
+            filter: "blur(25px)"
+          }} />
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, position: "relative", zIndex: 1 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <span style={{ fontSize: 20 }}>📅</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: t.name === "dark" ? "#67e8f9" : "#0891b2", letterSpacing: 0.5 }}>مواعيد التدريب لمجموعتك</span>
+                {todayTr ? (
+                  <span style={{
+                    background: "#ef4444",
+                    color: "#fff",
+                    fontSize: 10,
+                    fontWeight: 900,
+                    padding: "3px 10px",
+                    borderRadius: 20,
+                    animation: "pulse 1.8s infinite",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff", display: "inline-block" }} />
+                    تمرين اليوم!
+                  </span>
+                ) : (
+                  <span style={{
+                    background: t.name === "dark" ? "rgba(6,182,212,0.2)" : "rgba(6,182,212,0.12)",
+                    color: t.name === "dark" ? "#22d3ee" : "#0891b2",
+                    fontSize: 10,
+                    fontWeight: 800,
+                    padding: "3px 10px",
+                    borderRadius: 20
+                  }}>
+                    مجدول
+                  </span>
+                )}
               </div>
-            )}
+              
+              <div style={{ fontSize: 26, fontWeight: 900, color: t.text, marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
+                <span>{primaryTr.days.join(" و ")}</span>
+                <span style={{ fontSize: 16, color: "#06B6D4" }}>•</span>
+                <span style={{ color: "#06B6D4" }}>الساعة {primaryTr.time}</span>
+              </div>
+              
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 13, color: t.textDim, marginBottom: 16 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>🏟️</span> {primaryTr.field || "غير محدد"}
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>⏱️</span> {primaryTr.duration || 0} دقيقة
+                </span>
+              </div>
+
+              {primaryTr.trainingFocus && (
+                <div style={{ 
+                  background: t.name === "dark" ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)", 
+                  border: `1px solid ${t.border}`, 
+                  borderRadius: 12, 
+                  padding: "10px 16px",
+                  display: "inline-flex",
+                  flexDirection: "column",
+                  gap: 4
+                }}>
+                  <span style={{ fontSize: 10, color: t.textFaint, fontWeight: 800, textTransform: "uppercase" }}>🎯 التركيز التدريبي اليوم</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{primaryTr.trainingFocus}</span>
+                </div>
+              )}
+            </div>
+
+            <div style={{ 
+              background: t.name === "dark" ? "rgba(0,0,0,0.25)" : "rgba(255,255,255,0.75)", 
+              padding: "14px 20px", 
+              borderRadius: 18, 
+              border: `1px solid ${t.border}`,
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              minWidth: 100,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.02)"
+            }}>
+              <div style={{ fontSize: 32, fontWeight: 900, color: "#06B6D4", lineHeight: 1 }}>{myPlayers.length}</div>
+              <div style={{ fontSize: 10, color: t.textFaint, fontWeight: 700, marginTop: 4 }}>لاعب في المجموعة</div>
+            </div>
           </div>
-          <div style={{ textAlign: "center", background: "rgba(6,182,212,.07)", borderRadius: 16, padding: "18px 22px", border: "1px solid rgba(6,182,212,.14)" }}>
-            <div style={{ fontSize: 36, fontWeight: 900, color: "#06B6D4" }}>{myPlayers.length}</div>
-            <div style={{ fontSize: 12, color: t.textDim }}>لاعب</div>
-          </div>
-        </div>
-      </Card>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 18 }} className="s2">
+        </Card>
+      )}
+
+      {/* 2. Stat Cards Grid */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }} className="s2">
         <StatCard label="اللاعبون"     counter={myPlayers.length}                             icon="⚽" color="#06B6D4" t={t}/>
         <StatCard label="جلسات مسجلة" counter={attendance.filter(a => a.coachId === coach.id).length} icon="📋" color="#7C49A8" t={t}/>
         <StatCard label="تقييمات"      counter={evals.filter(e => e.coachId === coach.id).length}      icon="⭐" color="#F59E0B" t={t}/>
         <StatCard label="متوسط التقييم" counter={avgScore}                                   icon="📊" color="#10B981" t={t}/>
       </div>
+
+      {/* 3. Details Row */}
       <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 14 }} className="s3">
-        <Card t={t} style={{ padding: 22 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: t.text, marginBottom: 14 }}>⚽ لاعبو مجموعتي</div>
-          {myPlayers.map((p, i) => {
-            const lastEval = evals.filter(e => e.playerId === p.id && e.coachId === coach.id).slice(-1)[0];
-            return (
-              <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 0", borderBottom: i < myPlayers.length - 1 ? `1px solid ${t.border}` : "none" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <Avatar name={p.name} size={30} color="#06B6D4"/>
-                  <div><div style={{ fontSize: 12, fontWeight: 700, color: t.text }}>{p.name}</div><div style={{ fontSize: 10, color: t.textDim }}>{p.position} · {p.attendancePct}% حضور</div></div>
+        <Card t={t} style={{ padding: 22, borderRadius: 20 }}>
+          <div style={{ fontWeight: 800, fontSize: 14, color: t.text, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+            <span>⚽</span> لاعبو مجموعتي التدريبية ({myPlayers.length})
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+            {myPlayers.map((p, i) => {
+              const lastEval = evals.filter(e => e.playerId === p.id && e.coachId === coach.id).slice(-1)[0];
+              return (
+                <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: i < myPlayers.length - 1 ? `1px solid ${t.border}` : "none" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                    <Avatar name={p.name} size={32} color="#06B6D4"/>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{p.name}</div>
+                      <div style={{ fontSize: 10, color: t.textDim }}>{p.position} · {p.attendancePct}% حضور</div>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: "left", display: "flex", alignItems: "center", gap: 12 }}>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#F59E0B", textAlign: "left" }}>{lastEval?.technique || p.technique || "—"}</div>
+                      <div style={{ fontSize: 10, color: t.textDim }}>تقنية</div>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#10B981", textAlign: "left" }}>{lastEval?.speed || p.speed || "—"}</div>
+                      <div style={{ fontSize: 10, color: t.textDim }}>سرعة</div>
+                    </div>
+                  </div>
                 </div>
-                <div style={{ textAlign: "left" }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "#F59E0B" }}>{lastEval?.technique || p.technique}</div>
-                  <div style={{ fontSize: 10, color: t.textDim }}>تقنية</div>
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+            {myPlayers.length === 0 && (
+              <div style={{ textAlign: "center", color: t.textFaint, padding: 40 }}>لا يوجد لاعبون مسجلون في مجموعتك حالياً.</div>
+            )}
+          </div>
         </Card>
-        <Card t={t} style={{ padding: 22 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: t.text, marginBottom: 14 }}>📋 آخر جلسة حضور</div>
-          {lastAtt
-            ? <>
-                <div style={{ fontSize: 11, color: t.textDim, marginBottom: 10 }}>📅 {lastAtt.date}</div>
+
+        <Card t={t} style={{ padding: 22, borderRadius: 20 }}>
+          <div style={{ fontWeight: 800, fontSize: 14, color: t.text, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+            <span>📋</span> آخر جلسة تحضير حضور وغياب
+          </div>
+          {lastAtt ? (
+            <div>
+              <div style={{ fontSize: 11, color: t.textDim, marginBottom: 12 }}>📅 تاريخ الجلسة: {lastAtt.date}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {Object.entries(lastAtt.records).map(([pid, status]) => {
                   const p = myPlayers.find(x => x.id === pid);
                   return (
-                    <div key={pid} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "7px 0", borderBottom: `1px solid ${t.border}`, fontSize: 12 }}>
-                      <span style={{ color: t.textMid }}>{p?.name || pid}</span>
+                    <div key={pid} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 10px", borderRadius: 10, background: t.bg2, fontSize: 12, border: `1px solid ${t.border}` }}>
+                      <span style={{ color: t.textMid, fontWeight: 600 }}>{p?.name || pid}</span>
                       <Chip text={status} color={ATT_C[status]}/>
                     </div>
                   );
                 })}
-              </>
-            : <div style={{ textAlign: "center", color: t.textFaint, padding: 30 }}>لم يتم تسجيل حضور بعد</div>
-          }
+              </div>
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", color: t.textFaint, padding: "50px 0" }}>لم يتم تسجيل حضور بعد للمجموعة.</div>
+          )}
         </Card>
       </div>
     </div>
@@ -2687,7 +2807,7 @@ function ParentPortal({ user, onLogout, players, groups, coaches, parents, payme
           ))}
         </div>
       )}
-      {tab === "overview"   && <ParentOverview child={child} childGroup={childGroup} childCoach={childCoach} childPays={childPays} childEvals={childEvals} prices={prices} t={t}/>}
+      {tab === "overview"   && <ParentOverview child={child} childGroup={childGroup} childCoach={childCoach} childPays={childPays} childEvals={childEvals} prices={prices} trainings={trainings} t={t}/>}
       {tab === "scores"     && <ParentScores child={child} childEvals={childEvals} childCoach={childCoach} t={t}/>}
       {tab === "attendance" && <ParentAttendance child={child} childAtt={childAtt} t={t}/>}
       {tab === "payments"   && <ParentPayments child={child} childPays={childPays} prices={prices} t={t}/>}
@@ -2697,66 +2817,258 @@ function ParentPortal({ user, onLogout, players, groups, coaches, parents, payme
   );
 }
 
-function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, prices, t }) {
+function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, prices, trainings, t }) {
   if (!child) return <div style={{ textAlign: "center", color: t.textFaint, padding: 60 }}>لا يوجد أبناء مسجلين</div>;
   const lastEval  = childEvals.slice(-1)[0];
   const monthPaid = childPays.some(p => p.type === "subscription" && p.month === CUR_MONTH);
   const totalPaid = childPays.reduce((a, p) => a + p.amount, 0);
+
+  // Next / Upcoming training logic
+  const childTrainings = (trainings || []).filter(tr => tr.groupId === child.groupId);
+  const currentDayAr = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"][new Date().getDay()];
+  const todayTr = childTrainings.find(tr => tr.days.includes(currentDayAr));
+  const primaryTr = todayTr || childTrainings[0];
+
   return (
-    <div>
-      <Card t={t} style={{ padding: 26, marginBottom: 18, background: t.name === "dark" ? "linear-gradient(135deg,#0A1F12,#0C2A1A)" : "linear-gradient(135deg,#EFFDF5,#F0FFF4)", borderColor: "rgba(16,185,129,.2)" }} className="s1">
-        <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-          <div style={{ width: 72, height: 72, borderRadius: "50%", background: "linear-gradient(135deg,#10B981,#065F46)", display: "grid", placeItems: "center", fontSize: 28, fontWeight: 900, color: "#fff", boxShadow: "0 0 22px rgba(16,185,129,.3)" }}>{child.name[0]}</div>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 20, fontWeight: 900, marginBottom: 6, color: t.text }}>{child.name}</div>
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Chip text={child.position} color="#10B981"/>
-              <Chip text={childGroup?.name || "—"} color="#06B6D4"/>
-              <Chip text={`مدرب: ${childCoach?.name || "—"}`} color="#7C49A8"/>
-              <Chip text={child.status} color={child.status === "نشط" ? "#10B981" : "#EF4444"}/>
+    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* 1. Upcoming Training Card - VERY FIRST THING */}
+      {primaryTr && (
+        <Card t={t} style={{ 
+          padding: 24, 
+          background: t.name === "dark" 
+            ? "linear-gradient(135deg, #064e3b, #022c22)" 
+            : "linear-gradient(135deg, #e6fcf5, #c3fae8)", 
+          borderColor: "rgba(16,185,129,0.35)",
+          position: "relative",
+          overflow: "hidden",
+          borderRadius: 20,
+          boxShadow: t.name === "dark" ? "0 10px 30px rgba(0,0,0,0.3)" : "0 10px 30px rgba(16,185,129,0.08)",
+          animation: "scaleIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) both"
+        }}>
+          {/* Glowing particle orb */}
+          <div style={{
+            position: "absolute",
+            top: "-30px",
+            left: "-30px",
+            width: "140px",
+            height: "140px",
+            borderRadius: "50%",
+            background: t.name === "dark" ? "rgba(20,184,166,0.18)" : "rgba(16,185,129,0.15)",
+            filter: "blur(25px)"
+          }} />
+
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, position: "relative", zIndex: 1 }}>
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
+                <span style={{ fontSize: 20 }}>⚽</span>
+                <span style={{ fontSize: 13, fontWeight: 800, color: t.name === "dark" ? "#a7f3d0" : "#059669", letterSpacing: 0.5 }}>التدريب القادم للابن</span>
+                {todayTr ? (
+                  <span style={{
+                    background: "#ef4444",
+                    color: "#fff",
+                    fontSize: 10,
+                    fontWeight: 900,
+                    padding: "3px 10px",
+                    borderRadius: 20,
+                    animation: "pulse 1.8s infinite",
+                    display: "inline-flex",
+                    alignItems: "center",
+                    gap: 5
+                  }}>
+                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff", display: "inline-block" }} />
+                    تمرين اليوم!
+                  </span>
+                ) : (
+                  <span style={{
+                    background: t.name === "dark" ? "rgba(16,185,129,0.2)" : "rgba(16,185,129,0.12)",
+                    color: t.name === "dark" ? "#34d399" : "#059669",
+                    fontSize: 10,
+                    fontWeight: 800,
+                    padding: "3px 10px",
+                    borderRadius: 20
+                  }}>
+                    مجدول
+                  </span>
+                )}
+              </div>
+              
+              <div style={{ fontSize: 26, fontWeight: 900, color: t.text, marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
+                <span>{primaryTr.days.join(" و ")}</span>
+                <span style={{ fontSize: 16, color: "#10b981" }}>•</span>
+                <span style={{ color: "#10b981" }}>الساعة {primaryTr.time}</span>
+              </div>
+              
+              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 13, color: t.textDim, marginBottom: 16 }}>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>🏟️</span> {primaryTr.field || "غير محدد"}
+                </span>
+                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span>⏱️</span> {primaryTr.duration || 0} دقيقة
+                </span>
+              </div>
+
+              {primaryTr.trainingFocus && (
+                <div style={{ 
+                  background: t.name === "dark" ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)", 
+                  border: `1px solid ${t.border}`, 
+                  borderRadius: 12, 
+                  padding: "10px 16px",
+                  display: "inline-flex",
+                  flexDirection: "column",
+                  gap: 4
+                }}>
+                  <span style={{ fontSize: 10, color: t.textFaint, fontWeight: 800, textTransform: "uppercase" }}>🎯 التركيز التدريبي اليوم</span>
+                  <span style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{primaryTr.trainingFocus}</span>
+                </div>
+              )}
+            </div>
+
+            <div style={{ 
+              background: t.name === "dark" ? "rgba(0,0,0,0.25)" : "rgba(255,255,255,0.75)", 
+              padding: "14px 20px", 
+              borderRadius: 18, 
+              border: `1px solid ${t.border}`,
+              display: "flex",
+              alignItems: "center",
+              gap: 12,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.02)"
+            }}>
+              <Avatar name={childCoach?.name || "كابتن"} size={42} color="#7C49A8" />
+              <div>
+                <div style={{ fontSize: 10, color: t.textFaint, fontWeight: 700 }}>المدرب المسؤول</div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: t.text }}>{childCoach?.name || "طاقم التدريب"}</div>
+                <div style={{ fontSize: 11, color: "#7C49A8", fontWeight: 700 }}>{childCoach?.specialty || "مدرب معتمد"}</div>
+              </div>
             </div>
           </div>
-          <div style={{ textAlign: "center" }}>
+        </Card>
+      )}
+
+      {/* 2. Child Welcome Card */}
+      <Card t={t} style={{ 
+        padding: 26, 
+        background: t.name === "dark" ? "linear-gradient(135deg,#0A1F12,#0C2A1A)" : "linear-gradient(135deg,#EFFDF5,#F0FFF4)", 
+        borderColor: "rgba(16,185,129,.2)",
+        borderRadius: 20,
+        boxShadow: t.name === "dark" ? "0 4px 20px rgba(0,0,0,0.2)" : "0 4px 20px rgba(0,0,0,0.02)",
+        animation: "fadeUp .5s ease-out both"
+      }} className="s1">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 18 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
+            <div style={{ 
+              width: 72, 
+              height: 72, 
+              borderRadius: "50%", 
+              background: "linear-gradient(135deg,#10B981,#065F46)", 
+              display: "grid", 
+              placeItems: "center", 
+              fontSize: 28, 
+              fontWeight: 900, 
+              color: "#fff", 
+              boxShadow: "0 0 22px rgba(16,185,129,.3)" 
+            }}>{child.name[0]}</div>
+            <div>
+              <div style={{ fontSize: 22, fontWeight: 900, marginBottom: 8, color: t.text }}>{child.name}</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <Chip text={child.position} color="#10B981"/>
+                <Chip text={childGroup?.name || "—"} color="#06B6D4"/>
+                <Chip text={`مدرب: ${childCoach?.name || "—"}`} color="#7C49A8"/>
+                <Chip text={child.status} color={child.status === "نشط" ? "#10B981" : "#EF4444"}/>
+              </div>
+            </div>
+          </div>
+          <div style={{ 
+            textAlign: "center", 
+            background: t.name === "dark" ? "rgba(16,185,129,0.08)" : "rgba(16,185,129,0.05)",
+            padding: "12px 20px",
+            borderRadius: 16,
+            border: "1px solid rgba(16,185,129,0.12)"
+          }}>
             <div style={{ fontSize: 36, fontWeight: 900, color: "#10B981" }}>{child.score}</div>
             <div style={{ fontSize: 11, color: t.textDim }}>التقييم الكلي</div>
           </div>
         </div>
       </Card>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 18 }} className="s2">
+
+      {/* 3. Stat Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }} className="s2">
         <StatCard label="الأهداف"   counter={child.goals || 0}         icon="⚽" color="#EF4444" t={t}/>
         <StatCard label="التمريرات" counter={child.assists || 0}       icon="🎯" color="#10B981" t={t}/>
         <StatCard label="الحضور"    counter={child.attendancePct ? `${child.attendancePct}%` : "—"} icon="📅" color="#7C49A8" t={t}/>
         <StatCard label="التقييم"   counter={child.score || "—"}       icon="⭐" color="#F59E0B" t={t}/>
       </div>
+
+      {/* 4. Active details */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }} className="s3">
-        <Card t={t} style={{ padding: 22 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: t.text, marginBottom: 14 }}>📝 حالة التقييم</div>
-          {lastEval 
-            ? (
-              <div>
-                <div style={{ fontSize: 11, color: t.textDim, marginBottom: 12 }}>آخر تقييم بتاريخ: {lastEval.date} · {childCoach?.name}</div>
+        <Card t={t} style={{ padding: 22, borderRadius: 20 }}>
+          <div style={{ fontWeight: 800, fontSize: 14, color: t.text, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+            <span>📝</span> حالة التقييم المهارى
+          </div>
+          {lastEval ? (
+            <div>
+              <div style={{ fontSize: 11, color: t.textDim, marginBottom: 16 }}>آخر تقييم بتاريخ: {lastEval.date} · الكابتن {childCoach?.name}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <SkillBar label="السرعة" val={lastEval.speed} color="#06B6D4" t={t}/>
                 <SkillBar label="التقنية" val={lastEval.technique} color="#7C49A8" t={t}/>
                 <SkillBar label="العمل الجماعي" val={lastEval.teamwork} color="#F59E0B" t={t}/>
-                {lastEval.note && <div style={{ background: t.bg, borderRadius: 8, padding: "10px 12px", fontSize: 12, color: t.textDim, lineHeight: 1.7, marginTop: 10 }}>"{lastEval.note}"</div>}
               </div>
-            )
-            : <div style={{ textAlign: "center", color: t.textFaint, padding: "40px 0", fontSize: 13 }}>لم يتم تقييم اللاعب بعد من قبل المدرب.</div>
-          }
+              {lastEval.note && (
+                <div style={{ 
+                  background: t.name === "dark" ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.01)", 
+                  borderRadius: 14, 
+                  padding: "12px 16px", 
+                  fontSize: 12, 
+                  color: t.textDim, 
+                  lineHeight: 1.7, 
+                  marginTop: 18,
+                  border: `1px dashed ${t.border}`
+                }}>
+                  " {lastEval.note} "
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ textAlign: "center", color: t.textFaint, padding: "40px 0", fontSize: 13 }}>لم يتم تقييم اللاعب بعد من قبل المدرب.</div>
+          )}
         </Card>
-        <Card t={t} style={{ padding: 22 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: t.text, marginBottom: 14 }}>💰 ملخص المدفوعات</div>
-          <div style={{ fontSize: 26, fontWeight: 900, color: "#10B981", marginBottom: 4 }}>{fmtMoney(totalPaid)}</div>
-          <div style={{ fontSize: 11, color: t.textDim, marginBottom: 14 }}>إجمالي ما تم دفعه</div>
-          {childPays.slice(-3).map(p => {
-            const pt = PAY_TYPES[p.type];
-            return (
-              <div key={p.id} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${t.border}`, fontSize: 12 }}>
-                <span style={{ color: t.textDim }}>{pt.icon} {pt.label} · {p.month}</span>
-                <span style={{ fontWeight: 700, color: pt.color }}>{fmtMoney(p.amount)}</span>
-              </div>
-            );
-          })}
+
+        <Card t={t} style={{ padding: 22, borderRadius: 20 }}>
+          <div style={{ fontWeight: 800, fontSize: 14, color: t.text, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+            <span>💰</span> ملخص المدفوعات والاشتراك
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, borderBottom: `1px solid ${t.border}`, paddingBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: 26, fontWeight: 900, color: "#10B981" }}>{fmtMoney(totalPaid)}</div>
+              <div style={{ fontSize: 11, color: t.textDim }}>إجمالي المدفوعات المستلمة</div>
+            </div>
+            <div style={{ textAlign: "left" }}>
+              <span style={{
+                background: monthPaid ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
+                color: monthPaid ? "#10B981" : "#EF4444",
+                padding: "6px 12px",
+                borderRadius: 10,
+                fontSize: 11,
+                fontWeight: 800
+              }}>
+                {monthPaid ? "✅ اشتراك الشهر مدفوع" : "⚠️ اشتراك الشهر مستحق"}
+              </span>
+            </div>
+          </div>
+          
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {childPays.slice(-3).map((p, idx) => {
+              const pt = PAY_TYPES[p.type] || { icon: "💳", label: "رسوم", color: "#10B981" };
+              return (
+                <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: 12, background: t.bg2, fontSize: 12, border: `1px solid ${t.border}` }}>
+                  <span style={{ color: t.textDim, fontWeight: 600 }}>{pt.icon} {pt.label} · {p.month}</span>
+                  <span style={{ fontWeight: 800, color: pt.color }}>{fmtMoney(p.amount)}</span>
+                </div>
+              );
+            })}
+            {childPays.length === 0 && (
+              <div style={{ textAlign: "center", color: t.textFaint, padding: "20px 0" }}>لا يوجد فواتير مسجلة</div>
+            )}
+          </div>
         </Card>
       </div>
     </div>
