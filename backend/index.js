@@ -229,8 +229,8 @@ app.post('/api/groups', async (req, res) => {
   try {
     const group = await prisma.group.upsert({
       where: { id: g.id || 'new' },
-      update: { name: g.name, color: g.color },
-      create: { id: g.id, name: g.name, color: g.color }
+      update: { name: g.name, color: g.color, coachId: g.coachId || null },
+      create: { id: g.id, name: g.name, color: g.color, coachId: g.coachId || null }
     });
     res.json(group);
   } catch (e) {
