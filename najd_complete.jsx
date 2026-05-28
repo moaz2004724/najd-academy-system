@@ -1667,10 +1667,21 @@ function AdminPlayers({ players, setPlayers, groups, parents, t }) {
               <div style={{ fontWeight: 800, fontSize: 15, marginTop: 12, marginBottom: 6, color: t.text }}>{p.name}</div>
               <Chip text={p.position} color={g?.color || "#7C49A8"}/>
             </div>
-            {[["العمر", `${p.age || '—'} سنة`], ["الطول", `${p.height || '—'} سم`], ["الوزن", `${p.weight || '—'} كجم`], ["الأهداف", p.goals || 0], ["التمريرات", p.assists || 0], ["الحضور", `${p.attendancePct || 0}%`], ["المجموعة", g?.name || "—"], ["ولي الأمر", par?.name || "—"], ["الإيميل", p.email || "—"], ["كلمة المرور", p.password || "—"]].map(([k, v]) => (
+            {[
+              ["العمر", `${p.age || '—'} سنة`],
+              ["الطول", `${p.height || '—'} سم`],
+              ["الوزن", `${p.weight || '—'} كجم`],
+              ["الأهداف", p.goals || 0],
+              ["التمريرات", p.assists || 0],
+              ["الحضور", `${p.attendancePct || 0}%`],
+              ["المجموعة", g?.name || "—"],
+              ["ولي الأمر", par?.name || "—"],
+              ["إيميل الدخول", par?.email || p.email || "—"],
+              ["كلمة المرور", (p.parentId && String(p.parentId).startsWith('par_')) ? (p.password || `najd_${p.phone?.slice(-4)}`) : "كلمة مرور ولي الأمر الحالية"]
+            ].map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${t.border}`, fontSize: 12 }}>
                 <span style={{ color: t.textDim }}>{k}</span>
-                <span style={{ fontWeight: 600, color: k === "كلمة المرور" ? "#D8A435" : k === "الإيميل" ? "#06B6D4" : t.text, fontFamily: k === "كلمة المرور" ? "monospace" : undefined, fontSize: k === "كلمة المرور" ? 11 : 12 }}>{v}</span>
+                <span style={{ fontWeight: 600, color: (k === "كلمة المرور" && v !== "كلمة مرور ولي الأمر الحالية") ? "#D8A435" : k === "إيميل الدخول" ? "#06B6D4" : t.text, fontFamily: k === "كلمة المرور" ? "monospace" : undefined, fontSize: k === "كلمة المرور" ? 11 : 12 }}>{v}</span>
               </div>
             ))}
             <Btn style={{ width: "100%", marginTop: 14 }} onClick={() => { setForm({ ...p }); setModal("edit"); }}>
