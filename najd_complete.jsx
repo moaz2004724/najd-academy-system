@@ -1773,16 +1773,48 @@ function AdminPlayers({ players, setPlayers, groups, parents, t }) {
             <div style={{ flex: "1 1 calc(50% - 7px)" }}><Input label="العمر" value={form.age} onChange={v => setForm(x => ({ ...x, age: +v }))} type="number" t={t}/></div>
             <div style={{ flex: "1 1 calc(50% - 7px)" }}><Input label="الطول (سم)" value={form.height} onChange={v => setForm(x => ({ ...x, height: +v }))} type="number" t={t}/></div>
             <div style={{ flex: "1 1 calc(50% - 7px)" }}><Input label="الوزن (كجم)" value={form.weight} onChange={v => setForm(x => ({ ...x, weight: +v }))} type="number" t={t}/></div>
+            {/* ولي الأمر: اختيار من الحسابات الموجودة أو إنشاء جديد */}
+            <div style={{ flex: "1 1 100%" }}>
+              <Input
+                label="ولي الأمر (اختر حساباً موجوداً)"
+                value={form.parentId}
+                onChange={v => setForm(x => ({ ...x, parentId: v }))}
+                options={[
+                  { v: "__new__", l: "➕ إنشاء حساب جديد بناءً على رقم الهاتف" },
+                  ...parents.map(par => ({ v: par.id, l: par.name }))
+                ]}
+                t={t}
+              />
+            </div>
           </div>
           <div style={{ padding: 12, background: "rgba(16,185,129,.05)", borderRadius: 10, border: "1px dashed rgba(16,185,129,.2)", marginBottom: 15, fontSize: 11, color: t.textDim }}>
-            💡 سيتم إنشاء بيانات دخول ولي الأمر تلقائياً بناءً على رقم الهاتف.
+            {form.parentId === "__new__" || !form.parentId
+              ? "💡 سيتم إنشاء حساب ولي أمر جديد تلقائياً بناءً على رقم الهاتف."
+              : `✅ سيتم ربط اللاعب بحساب ولي الأمر: ${parents.find(p => p.id === form.parentId)?.name}`
+            }
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             <Btn onClick={() => { 
               const phone = form.phone || Date.now().toString();
+              // إذا اختار المدير ولي أمر موجود → استخدم ID الحساب الموجود
+              // إذا اختار "جديد" أو لم يختر → أنشئ parentId من رقم الهاتف
+              const resolvedParentId = (form.parentId && form.parentId !== "__new__")
+                ? form.parentId
+                : `par_${phone}`;
               const generatedEmail = `najd_${phone}@najd.sa`;
               const generatedPass  = `najd_${phone.slice(-4)}`;
-              setPlayers(ps => [...ps, { ...form, id: `p${Date.now()}`, email: generatedEmail, password: generatedPass, score: +form.score || 80, attendancePct: 90, goals: 0, assists: 0, joinDate: new Date().toISOString().split("T")[0] }]); 
+              setPlayers(ps => [...ps, { 
+                ...form, 
+                id: `p${Date.now()}`, 
+                parentId: resolvedParentId,
+                email: generatedEmail, 
+                password: generatedPass, 
+                score: +form.score || 80, 
+                attendancePct: 90, 
+                goals: 0, 
+                assists: 0, 
+                joinDate: new Date().toISOString().split("T")[0] 
+              }]); 
               setModal(null); 
             }} style={{ flex: 1 }}>✅ إضافة وتوليد بيانات الدخول</Btn>
             <Btn variant="secondary" onClick={() => setModal(null)}>إلغاء</Btn>
@@ -2549,8 +2581,8 @@ function ParentPortal({ user, onLogout, players, groups, coaches, parents, payme
   // 1. Identify the parent from the dynamic parents list
   const parent = parents.find(p => p.id === user.id) || { name: user.name, id: user.id };
   
-  // 2. Filter players by parentId
-  const myPlayers = players.filter(p => p.parentId === user.id);
+  // 2. Filter players by parentId — use String() to handle type mismatches
+  const myPlayers = players.filter(p => String(p.parentId) === String(user.id));
   
   const [activeChild, setActiveChild] = useState(myPlayers[0]?.id);
 
