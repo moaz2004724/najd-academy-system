@@ -2239,7 +2239,7 @@ function CoachPortal({ user, onLogout, groups, coaches, players, payments, setPa
       {tab === "attendance" && perms.attendance !== false && <CoachAttendance coachId={user.id} group={group} myPlayers={myPlayers} attendance={attendance} setAttendance={setAttendance} t={t}/>}
       {tab === "eval"       && perms.evals !== false      && <CoachEval coachId={user.id} myPlayers={myPlayers} evals={evals} setEvals={setEvals} t={t}/>}
       {tab === "payments"   && perms.payments !== false   && <CoachPayments coachId={user.id} myPlayers={myPlayers} payments={payments} setPayments={setPayments} prices={prices} coaches={coaches} t={t}/>}
-      {tab === "messages"   && perms.messages !== false   && <Messaging messages={messages} setMessages={setMessages} meId={user.id} meName={coach.name} coaches={coaches} parents={INIT_PARENTS} t={t}/>}
+      {tab === "messages"   && perms.messages !== false   && <Messaging messages={messages} setMessages={setMessages} meId={user.id} meName={coach.name} coaches={coaches} parents={parents} t={t} role="coach" myGroupId={coach.groupId} players={players} />}
     </Shell>
   );
 }
@@ -2985,7 +2985,7 @@ const QUICK_TEMPLATES = [
   { label: "تقييم جديد", text: "تم تحديث التقييم الفني للاعب، يرجى الاطلاع عليه من لوحة التحكم." },
 ];
 
-function Messaging({ messages, setMessages, meId, meName, coaches, parents, t, role, myGroupId, myPlayerIds }) {
+function Messaging({ messages, setMessages, meId, meName, coaches, parents, t, role, myGroupId, myPlayerIds, myCoachIds, players }) {
   const [compose, setCompose] = useState(false);
   const [form, setForm] = useState({ to: [], text: "", files: [] });
   const [filterType, setFilterType] = useState("all");
