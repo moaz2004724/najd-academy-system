@@ -212,14 +212,65 @@ app.post('/api/coaches', async (req, res) => {
       update: { password: c.password, name: c.name },
       create: { email: c.email, password: c.password, name: c.name, role: 'COACH' }
     });
-    // 2. Upsert Coach
+
+    // 2. Resolve Unique Constraint on groupId in Coach table
+    if (c.groupId) {
+      await prisma.coach.updateMany({
+        where: { 
+          groupId: c.groupId,
+          NOT: { id: c.id || 'new' }
+        },
+        data: { groupId: null }
+      });
+    }
+
+    // 3. Upsert Coach (including exp, cert, salary)
     const coach = await prisma.coach.upsert({
       where: { id: c.id || 'new' },
-      update: { specialty: c.specialty, perms: c.perms, groupId: c.groupId, userId: user.id },
-      create: { id: c.id, specialty: c.specialty, perms: c.perms, groupId: c.groupId, userId: user.id }
+      update: { 
+        specialty: c.specialty, 
+        perms: c.perms, 
+        groupId: c.groupId || null, 
+        userId: user.id,
+        salary: c.salary ? parseFloat(c.salary) : null,
+        exp: c.exp ? parseInt(c.exp) : null,
+        cert: c.cert
+      },
+      create: { 
+        id: c.id, 
+        specialty: c.specialty, 
+        perms: c.perms, 
+        groupId: c.groupId || null, 
+        userId: user.id,
+        salary: c.salary ? parseFloat(c.salary) : null,
+        exp: c.exp ? parseInt(c.exp) : null,
+        cert: c.cert
+      }
     });
+
+    // 4. Synchronize Group table's coachId
+    await prisma.group.updateMany({
+      where: { 
+        coachId: coach.id,
+        NOT: { id: c.groupId || 'none' }
+      },
+      data: { coachId: null }
+    });
+
+    if (c.groupId) {
+      await prisma.group.updateMany({
+        where: { id: c.groupId },
+        data: { coachId: null }
+      });
+      await prisma.group.update({
+        where: { id: c.groupId },
+        data: { coachId: coach.id }
+      });
+    }
+
     res.json(coach);
   } catch (e) {
+    console.error("Coach upsert error:", e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -227,13 +278,49 @@ app.post('/api/coaches', async (req, res) => {
 app.post('/api/groups', async (req, res) => {
   const g = req.body;
   try {
+    const coachId = g.coachId || null;
+
+    // 1. Resolve Unique Constraint on coachId in Group table
+    if (coachId) {
+      await prisma.group.updateMany({
+        where: { 
+          coachId: coachId,
+          NOT: { id: g.id || 'new' }
+        },
+        data: { coachId: null }
+      });
+    }
+
+    // 2. Upsert Group
     const group = await prisma.group.upsert({
       where: { id: g.id || 'new' },
-      update: { name: g.name, color: g.color, coachId: g.coachId || null },
-      create: { id: g.id, name: g.name, color: g.color, coachId: g.coachId || null }
+      update: { name: g.name, color: g.color, coachId: coachId },
+      create: { id: g.id, name: g.name, color: g.color, coachId: coachId }
     });
+
+    // 3. Synchronize Coach table's groupId
+    await prisma.coach.updateMany({
+      where: { 
+        groupId: group.id,
+        NOT: { id: coachId || 'none' }
+      },
+      data: { groupId: null }
+    });
+
+    if (coachId) {
+      await prisma.coach.updateMany({
+        where: { id: coachId },
+        data: { groupId: null }
+      });
+      await prisma.coach.update({
+        where: { id: coachId },
+        data: { groupId: group.id }
+      });
+    }
+
     res.json(group);
   } catch (e) {
+    console.error("Group upsert error:", e);
     res.status(500).json({ error: e.message });
   }
 });
