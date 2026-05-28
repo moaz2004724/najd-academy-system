@@ -241,21 +241,40 @@ app.post('/api/groups', async (req, res) => {
 app.post('/api/trainings', async (req, res) => {
   const t = req.body;
   try {
+    let resolvedCoachId = t.coachId;
+    if (!resolvedCoachId) {
+      const firstCoach = await prisma.coach.findFirst();
+      resolvedCoachId = firstCoach?.id;
+    }
+    if (!resolvedCoachId) {
+      return res.status(400).json({ error: "لا يوجد مدرب مسجل في النظام لربط التمرين به. يرجى إضافة مدرب أولاً." });
+    }
+
+    let resolvedGroupId = t.groupId;
+    if (!resolvedGroupId) {
+      const firstGroup = await prisma.group.findFirst();
+      resolvedGroupId = firstGroup?.id;
+    }
+    if (!resolvedGroupId) {
+      return res.status(400).json({ error: "لا توجد مجموعة مسجلة في النظام لربط التمرين بها. يرجى إضافة مجموعة أولاً." });
+    }
+
     const training = await prisma.training.upsert({
       where: { id: t.id || 'new' },
       update: { 
-        groupId: t.groupId, coachId: t.coachId, days: t.days, 
-        time: t.time, duration: t.duration, field: t.field, 
+        groupId: resolvedGroupId, coachId: resolvedCoachId, days: t.days || [], 
+        time: t.time || "4:00 م", duration: t.duration ? +t.duration : 90, field: t.field || "ملعب A", 
         title: t.title, trainingFocus: t.trainingFocus, note: t.note 
       },
       create: { 
-        id: t.id, groupId: t.groupId, coachId: t.coachId, days: t.days, 
-        time: t.time, duration: t.duration, field: t.field, 
+        id: t.id, groupId: resolvedGroupId, coachId: resolvedCoachId, days: t.days || [], 
+        time: t.time || "4:00 م", duration: t.duration ? +t.duration : 90, field: t.field || "ملعب A", 
         title: t.title, trainingFocus: t.trainingFocus, note: t.note 
       }
     });
     res.json(training);
   } catch (e) {
+    console.error("Training create error:", e);
     res.status(500).json({ error: e.message });
   }
 });

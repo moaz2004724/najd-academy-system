@@ -2016,18 +2016,36 @@ function AdminPrices({ prices, setPrices, t }) {
 
 function AdminTrainings({ trainings, setTrainings, groups, coaches, t }) {
   const [modal, setModal] = useState(false);
-  const empty = { groupId: groups[0]?.id, coachId: groups[0]?.coachId, days: [], time: "4:00 م", duration: 90, field: "ملعب A", title: "", trainingFocus: "", note: "" };
+  const empty = { 
+    groupId: groups[0]?.id || "", 
+    coachId: groups[0]?.coachId || coaches[0]?.id || "", 
+    days: [], 
+    time: "4:00 م", 
+    duration: 90, 
+    field: "ملعب A", 
+    title: "", 
+    trainingFocus: "", 
+    note: "" 
+  };
   const [form, setForm] = useState(empty);
   const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"];
 
   const save = () => {
+    if (!form.groupId) {
+      alert("الرجاء اختيار مجموعة");
+      return;
+    }
+    if (!form.coachId) {
+      alert("الرجاء اختيار مدرب");
+      return;
+    }
     setTrainings(ts => [...ts, { ...form, id: `tr${Date.now()}` }]);
     setModal(false);
   };
 
   const handleGroupChange = (gid) => {
     const group = groups.find(g => g.id === gid);
-    setForm(f => ({ ...f, groupId: gid, coachId: group?.coachId }));
+    setForm(f => ({ ...f, groupId: gid, coachId: group?.coachId || coaches[0]?.id || "" }));
   };
 
   return (
