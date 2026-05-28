@@ -2223,7 +2223,7 @@ function AdminAttendance({ groups, players, coaches, attendance, setAttendance, 
   );
 }
 
-function CoachPortal({ user, onLogout, groups, coaches, players, payments, setPayments, attendance, setAttendance, coachesAttendance, setCoachesAttendance, evals, setEvals, messages, setMessages, prices, trainings, setTrainings, t, syncStatus }) {
+function CoachPortal({ user, onLogout, groups, coaches, players, parents, payments, setPayments, attendance, setAttendance, coachesAttendance, setCoachesAttendance, evals, setEvals, messages, setMessages, prices, trainings, setTrainings, t, syncStatus }) {
   const coach = coaches.find(c => c.id === user.id) || coaches[0];
   const perms = coach?.perms || { ...DEFAULT_PERMS };
   const group = groups.find(g => g.id === coach.groupId);
@@ -3011,6 +3011,31 @@ function Messaging({ messages, setMessages, meId, meName, coaches, parents, t, r
   const mine = (messages || []).filter(m => m.from === meId || m.to === meId);
   const markRead = id => setMessages(ms => ms.map(m => m.id === id ? { ...m, read: true } : m));
 
+  const templates = (() => {
+    if (role === "admin") {
+      return [
+        { label: "ترحيب باللاعبين", text: "أهلاً بك في نادي نجد الرياضي. يسعدنا انضمامكم إلينا متمنين لكم رحلة تدريبية متميزة." },
+        { label: "تذكير سداد الرسوم", text: "نحيطكم علماً بضرورة سداد الرسوم الشهرية المستحقة لضمان استمرارية التدريب." },
+        { label: "إشعار إداري", text: "نود تذكيركم بضرورة الالتزام بالقواعد والزي الرسمي للأكاديمية خلال الحصص التدريبية." },
+        { label: "عطلة رسمية", text: "نحيطكم علماً بأنه سيتم إيقاف التدريبات مؤقتاً خلال فترة الإجازة الرسمية المعلنة." }
+      ];
+    } else if (role === "coach") {
+      return [
+        { label: "تأجيل تمرين", text: "نعتذر عن إلغاء تمرين اليوم لظروف طارئة، وسيتم تعويض الحصة في موعد يُحدد لاحقاً." },
+        { label: "تقييم جديد للابن", text: "تم تحديث التقييم الفني والبدني للاعب، يرجى الاطلاع عليه من بوابتكم لمتابعة أدائه." },
+        { label: "التزام بالموعد", text: "نرجو حث اللاعبين على الحضور في الوقت المحدد تماماً للتمرين مع لبس الزي الرسمي." },
+        { label: "استفسار عن غياب", text: "السلام عليكم، نود الاطمئنان على صحة اللاعب وسبب غيابه عن الحصص التدريبية الأخيرة." }
+      ];
+    } else { // parent
+      return [
+        { label: "إخطار غياب لاعب", text: "السلام عليكم، أود إبلاغكم بغياب ابني عن تمرين اليوم لظرف طارئ/صحي." },
+        { label: "استفسار عن مستوى", text: "السلام عليكم كابتن، أود الاستفسار عن تطور مستوى ابني الفني والبدني في التدريبات." },
+        { label: "مشكلة سداد رسوم", text: "السلام عليكم، واجهتني مشكلة أثناء سداد الرسوم الشهرية، أرجو توجيهي لكيفية حلها." },
+        { label: "رسالة شكر", text: "خالص الشكر والتقدير لكم كابتن ولإدارة النادي على جهودكم الملموسة ورعايتكم لأبنائنا." }
+      ];
+    }
+  })();
+
   // Auto-scroll to bottom of chat
   useEffect(() => {
     if (chatEndRef.current) {
@@ -3154,8 +3179,12 @@ function Messaging({ messages, setMessages, meId, meName, coaches, parents, t, r
     const safeCoachIds = myCoachIds || [];
     filteredContacts = filteredContacts.filter(c => c.type === "admin" || (c.type === "coach" && safeCoachIds.includes(c.id)));
   } else if (role === "coach") {
-    const myGroupPlayerIds = (players || []).filter(p => p.groupId === myGroupId).map(p => p.parentId);
-    filteredContacts = filteredContacts.filter(c => c.type === "admin" || (c.type === "parent" && myGroupPlayerIds.includes(c.id)));
+    if (myGroupId) {
+      const myGroupPlayerIds = (players || []).filter(p => p.groupId === myGroupId).map(p => p.parentId);
+      filteredContacts = filteredContacts.filter(c => c.type === "admin" || (c.type === "parent" && myGroupPlayerIds.includes(c.id)));
+    } else {
+      filteredContacts = filteredContacts.filter(c => c.type === "admin" || c.type === "parent");
+    }
   }
 
   const allContacts = filteredContacts;
@@ -3350,15 +3379,42 @@ function Messaging({ messages, setMessages, meId, meName, coaches, parents, t, r
                 {/* Section Filters */}
                 <div style={{ display: "flex", background: t.bg, borderRadius: 10, padding: 4, marginBottom: 12, border: `1px solid ${t.border}` }}>
                   <button onClick={() => setFilterType("all")} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: filterType === "all" ? "#7C49A8" : "transparent", color: filterType === "all" ? "#fff" : t.textDim, fontSize: 11, cursor: "pointer", fontWeight: 700 }}>الكل</button>
-                  <button onClick={() => setFilterType("admin")} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: filterType === "admin" ? "#7C49A8" : "transparent", color: filterType === "admin" ? "#fff" : t.textDim, fontSize: 11, cursor: "pointer", fontWeight: 700 }}>الإدارة</button>
-                  <button onClick={() => setFilterType("coach")} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: filterType === "coach" ? "#06B6D4" : "transparent", color: filterType === "coach" ? "#fff" : t.textDim, fontSize: 11, cursor: "pointer", fontWeight: 700 }}>المدربين</button>
+                  
+                  {role !== "admin" && (
+                    <button onClick={() => setFilterType("admin")} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: filterType === "admin" ? "#7C49A8" : "transparent", color: filterType === "admin" ? "#fff" : t.textDim, fontSize: 11, cursor: "pointer", fontWeight: 700 }}>الإدارة</button>
+                  )}
+                  
+                  {role !== "coach" && (
+                    <button onClick={() => setFilterType("coach")} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: filterType === "coach" ? "#06B6D4" : "transparent", color: filterType === "coach" ? "#fff" : t.textDim, fontSize: 11, cursor: "pointer", fontWeight: 700 }}>المدربين</button>
+                  )}
+                  
                   {role !== "parent" && (
                     <button onClick={() => setFilterType("parent")} style={{ flex: 1, padding: "8px", borderRadius: 8, border: "none", background: filterType === "parent" ? "#10B981" : "transparent", color: filterType === "parent" ? "#fff" : t.textDim, fontSize: 11, cursor: "pointer", fontWeight: 700 }}>أولياء الأمور</button>
                   )}
                 </div>
 
                 <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
-                  <button onClick={() => selectGroup(filterType)} style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${filterType === 'all' ? '#7C49A8' : filterType === 'coach' ? '#06B6D4' : '#10B981'}`, background: "transparent", color: t.text, fontSize: 10, cursor: "pointer", fontWeight: 600 }}>تحديد كل {filterType === "all" ? "القائمة" : filterType === "coach" ? "المدربين" : "أولياء الأمور"}</button>
+                  <button onClick={() => selectGroup(filterType)} 
+                    style={{ 
+                      padding: "6px 14px", 
+                      borderRadius: 8, 
+                      border: `1px solid ${
+                        filterType === 'all' ? '#7C49A8' : 
+                        filterType === 'coach' ? '#06B6D4' : 
+                        filterType === 'admin' ? '#7C49A8' : '#10B981'
+                      }`, 
+                      background: "transparent", 
+                      color: t.text, 
+                      fontSize: 10, 
+                      cursor: "pointer", 
+                      fontWeight: 600 
+                    }}>
+                    تحديد كل {
+                      filterType === "all" ? "القائمة" : 
+                      filterType === "coach" ? "المدربين" : 
+                      filterType === "admin" ? "الإدارة" : "أولياء الأمور"
+                    }
+                  </button>
                   <button onClick={() => setForm(f => ({ ...f, to: [] }))} style={{ padding: "6px 14px", borderRadius: 8, border: `1px solid ${t.border}`, background: "transparent", color: t.textDim, fontSize: 10, cursor: "pointer" }}>إلغاء التحديد</button>
                 </div>
 
@@ -3410,7 +3466,7 @@ function Messaging({ messages, setMessages, meId, meName, coaches, parents, t, r
                 <span style={{ animation: "pulse 2s infinite" }}>⚡</span> رسائل جاهزة
               </div>
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                {QUICK_TEMPLATES.map((tmp, idx) => (
+                {templates.map((tmp, idx) => (
                   <button key={idx} onClick={() => setForm(f => ({ ...f, text: tmp.text }))}
                     style={{ textAlign: "right", padding: "12px 14px", borderRadius: 12, background: t.bg2, border: `1px solid ${t.border}`, color: t.textMid, fontSize: 11, cursor: "pointer", transition: "all .2s" }}
                     onMouseEnter={e => e.currentTarget.style.borderColor = "#7C49A8"} onMouseLeave={e => e.currentTarget.style.borderColor = t.border}>
