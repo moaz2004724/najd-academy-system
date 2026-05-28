@@ -1809,7 +1809,19 @@ function AdminPlayers({ players, setPlayers, groups, parents, t }) {
           </div>
           <div style={{ display: "flex", gap: 10 }}>
             <Btn onClick={() => { 
-              const phone = form.phone || Date.now().toString();
+              if (!form.name || !form.name.trim()) {
+                alert("الرجاء إدخال اسم اللاعب الكامل");
+                return;
+              }
+              if (!form.phone || !form.phone.trim()) {
+                alert("الرجاء إدخال رقم الهاتف (مطلوب للدخول)");
+                return;
+              }
+              if (!form.age || isNaN(form.age) || +form.age <= 0) {
+                alert("الرجاء إدخال عمر اللاعب (مطلوب)");
+                return;
+              }
+              const phone = form.phone.trim();
               // إذا اختار المدير ولي أمر موجود → استخدم ID الحساب الموجود
               // إذا اختار "جديد" أو لم يختر → أنشئ parentId من رقم الهاتف
               const resolvedParentId = (form.parentId && form.parentId !== "__new__")

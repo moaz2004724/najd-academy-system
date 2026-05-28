@@ -18,21 +18,6 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', dbHost });
 });
 
-app.get('/api/db-check', async (req, res) => {
-  try {
-    const users = await prisma.user.findMany({ include: { parentProfile: true } });
-    const parents = await prisma.parent.findMany();
-    const players = await prisma.player.findMany();
-    res.json({
-      parentUsers: users.filter(u => u.role === 'PARENT').map(u => ({ id: u.id, name: u.name, email: u.email, parentProfileId: u.parentProfile?.id })),
-      parents: parents.map(p => ({ id: p.id, userId: p.userId })),
-      players: players.map(p => ({ id: p.id, name: p.name, parentId: p.parentId }))
-    });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
-});
-
 // --- Auth Routes ---
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
@@ -144,6 +129,11 @@ app.post('/api/players', async (req, res) => {
       resolvedParentId = parent.id;
     }
 
+    // Parse numbers safely to prevent Prisma constraint violations
+    const resolvedAge = (p.age && !isNaN(p.age) && +p.age > 0) ? parseInt(p.age) : 10;
+    const resolvedWeight = (p.weight && !isNaN(p.weight)) ? parseFloat(p.weight) : null;
+    const resolvedHeight = (p.height && !isNaN(p.height)) ? parseFloat(p.height) : null;
+
     // Create or update the Player record
     // Safe upsert: try update first, fall back to create
     let player;
@@ -153,10 +143,10 @@ app.post('/api/players', async (req, res) => {
       player = await prisma.player.update({
         where: { id: p.id },
         data: {
-          name: p.name, phone: p.phone, age: p.age ? +p.age : null,
+          name: p.name, phone: p.phone, age: resolvedAge,
           status: p.status, position: p.position,
-          weight: p.weight ? +p.weight : null,
-          height: p.height ? +p.height : null,
+          weight: resolvedWeight,
+          height: resolvedHeight,
           groupId: p.groupId, score: p.score ? +p.score : null,
           parentId: resolvedParentId
         }
@@ -165,10 +155,10 @@ app.post('/api/players', async (req, res) => {
       player = await prisma.player.create({
         data: {
           id: p.id,
-          name: p.name, phone: p.phone, age: p.age ? +p.age : null,
+          name: p.name, phone: p.phone, age: resolvedAge,
           status: p.status || 'نشط', position: p.position,
-          weight: p.weight ? +p.weight : null,
-          height: p.height ? +p.height : null,
+          weight: resolvedWeight,
+          height: resolvedHeight,
           groupId: p.groupId, score: p.score ? +p.score : 80,
           parentId: resolvedParentId
         }
