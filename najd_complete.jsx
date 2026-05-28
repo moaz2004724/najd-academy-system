@@ -2807,7 +2807,7 @@ function ParentPortal({ user, onLogout, players, groups, coaches, parents, payme
           ))}
         </div>
       )}
-      {tab === "overview"   && <ParentOverview child={child} childGroup={childGroup} childCoach={childCoach} childPays={childPays} childEvals={childEvals} prices={prices} trainings={trainings} t={t}/>}
+      {tab === "overview"   && <ParentOverview child={child} childGroup={childGroup} childCoach={childCoach} childPays={childPays} childEvals={childEvals} prices={prices} trainings={trainings} coaches={coaches} t={t}/>}
       {tab === "scores"     && <ParentScores child={child} childEvals={childEvals} childCoach={childCoach} t={t}/>}
       {tab === "attendance" && <ParentAttendance child={child} childAtt={childAtt} t={t}/>}
       {tab === "payments"   && <ParentPayments child={child} childPays={childPays} prices={prices} t={t}/>}
@@ -2817,9 +2817,11 @@ function ParentPortal({ user, onLogout, players, groups, coaches, parents, payme
   );
 }
 
-function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, prices, trainings, t }) {
+function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, prices, trainings, coaches, t }) {
   if (!child) return <div style={{ textAlign: "center", color: t.textFaint, padding: 60 }}>لا يوجد أبناء مسجلين</div>;
   const lastEval  = childEvals.slice(-1)[0];
+  const evalCoach = lastEval ? (coaches || []).find(c => c.id === lastEval.coachId) : null;
+  const evalCoachName = evalCoach ? evalCoach.name : (childCoach?.name || "طاقم التدريب");
   const monthPaid = childPays.some(p => p.type === "subscription" && p.month === CUR_MONTH);
   const totalPaid = childPays.reduce((a, p) => a + p.amount, 0);
 
@@ -2984,7 +2986,7 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
             borderRadius: 16,
             border: "1px solid rgba(16,185,129,0.12)"
           }}>
-            <div style={{ fontSize: 36, fontWeight: 900, color: "#10B981" }}>{child.score}</div>
+            <div style={{ fontSize: lastEval ? 36 : 12, fontWeight: 900, color: "#10B981" }}>{lastEval ? child.score : "لم يتم التقييم"}</div>
             <div style={{ fontSize: 11, color: t.textDim }}>التقييم الكلي</div>
           </div>
         </div>
@@ -2995,7 +2997,7 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
         <StatCard label="الأهداف"   counter={child.goals || 0}         icon="⚽" color="#EF4444" t={t}/>
         <StatCard label="التمريرات" counter={child.assists || 0}       icon="🎯" color="#10B981" t={t}/>
         <StatCard label="الحضور"    counter={child.attendancePct ? `${child.attendancePct}%` : "—"} icon="📅" color="#7C49A8" t={t}/>
-        <StatCard label="التقييم"   counter={child.score || "—"}       icon="⭐" color="#F59E0B" t={t}/>
+        <StatCard label="التقييم"   counter={lastEval ? child.score : undefined} value={lastEval ? undefined : "لم يتم التقييم"} icon="⭐" color="#F59E0B" t={t}/>
       </div>
 
       {/* 4. Active details */}
@@ -3006,7 +3008,7 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
           </div>
           {lastEval ? (
             <div>
-              <div style={{ fontSize: 11, color: t.textDim, marginBottom: 16 }}>آخر تقييم بتاريخ: {lastEval.date} · الكابتن {childCoach?.name}</div>
+              <div style={{ fontSize: 11, color: t.textDim, marginBottom: 16 }}>آخر تقييم بتاريخ: {lastEval.date} · الكابتن {evalCoachName}</div>
               <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                 <SkillBar label="السرعة" val={lastEval.speed} color="#06B6D4" t={t}/>
                 <SkillBar label="التقنية" val={lastEval.technique} color="#7C49A8" t={t}/>

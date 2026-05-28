@@ -407,6 +407,13 @@ app.post('/api/evaluations', async (req, res) => {
         teamwork: parseInt(e.teamwork) || 80
       }
     });
+
+    const avgScore = Math.round((evaluation.speed + evaluation.technique + evaluation.teamwork) / 3);
+    await prisma.player.update({
+      where: { id: e.playerId },
+      data: { score: avgScore }
+    });
+
     res.json(evaluation);
   } catch (err) {
     console.error("Evaluation error:", err);
