@@ -18,6 +18,21 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', dbHost });
 });
 
+app.get('/api/db-check', async (req, res) => {
+  try {
+    const users = await prisma.user.findMany({ include: { parentProfile: true } });
+    const parents = await prisma.parent.findMany();
+    const players = await prisma.player.findMany();
+    res.json({
+      parentUsers: users.filter(u => u.role === 'PARENT').map(u => ({ id: u.id, name: u.name, email: u.email, parentProfileId: u.parentProfile?.id })),
+      parents: parents.map(p => ({ id: p.id, userId: p.userId })),
+      players: players.map(p => ({ id: p.id, name: p.name, parentId: p.parentId }))
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // --- Auth Routes ---
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
