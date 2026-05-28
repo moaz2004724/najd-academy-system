@@ -3025,6 +3025,16 @@ function Messaging({ messages, setMessages, meId, meName, coaches, parents, t, r
     }
   }, [activePartnerId, messages]);
 
+  // Helper to check if msg A is newer than msg B
+  const isNewer = (a, b) => {
+    const dateA = new Date(a.date || 0);
+    const dateB = new Date(b.date || 0);
+    if (dateA - dateB !== 0) return dateA > dateB;
+    const tsA = parseInt(a.id?.match(/\d+/)?.[0] || 0);
+    const tsB = parseInt(b.id?.match(/\d+/)?.[0] || 0);
+    return tsA > tsB;
+  };
+
   // Group messages into WhatsApp-style conversations
   const conversationsMap = {};
   mine.forEach(m => {
@@ -3043,9 +3053,7 @@ function Messaging({ messages, setMessages, meId, meName, coaches, parents, t, r
     
     conversationsMap[partnerId].messages.push(m);
     
-    const currentLastDate = new Date(conversationsMap[partnerId].lastMessage.date || 0);
-    const msgDate = new Date(m.date || 0);
-    if (msgDate >= currentLastDate) {
+    if (isNewer(m, conversationsMap[partnerId].lastMessage)) {
       conversationsMap[partnerId].lastMessage = m;
     }
 
@@ -3240,7 +3248,14 @@ function Messaging({ messages, setMessages, meId, meName, coaches, parents, t, r
         const conv = conversationsMap[activePartnerId];
         const partnerName = conv ? conv.partnerName : "محادثة";
         const display = getPartnerDisplay(activePartnerId, partnerName);
-        const chatMsgs = conv ? conv.messages.slice().reverse() : [];
+        const chatMsgs = conv ? conv.messages.slice().sort((a, b) => {
+          const dateA = new Date(a.date || 0);
+          const dateB = new Date(b.date || 0);
+          if (dateA - dateB !== 0) return dateA - dateB;
+          const tsA = parseInt(a.id?.match(/\d+/)?.[0] || 0);
+          const tsB = parseInt(b.id?.match(/\d+/)?.[0] || 0);
+          return tsA - tsB;
+        }) : [];
 
         return (
           <Modal title="" onClose={() => setActivePartnerId(null)} wide t={t} footer={null} style={{ padding: 0 }}>
