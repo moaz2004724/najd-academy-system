@@ -159,8 +159,9 @@ app.post('/api/players', async (req, res) => {
           status: p.status, position: p.position,
           weight: resolvedWeight,
           height: resolvedHeight,
-          groupId: p.groupId, score: p.score ? +p.score : null,
-          parentId: resolvedParentId
+          score: p.score ? +p.score : null,
+          group: { connect: { id: p.groupId } },
+          parent: { connect: { id: resolvedParentId } }
         }
       });
     } else {
@@ -171,8 +172,9 @@ app.post('/api/players', async (req, res) => {
           status: p.status || 'نشط', position: p.position,
           weight: resolvedWeight,
           height: resolvedHeight,
-          groupId: p.groupId, score: p.score ? +p.score : 80,
-          parentId: resolvedParentId
+          score: p.score ? +p.score : 80,
+          group: { connect: { id: p.groupId } },
+          parent: { connect: { id: resolvedParentId } }
         }
       });
     }
@@ -188,10 +190,27 @@ app.post('/api/players', async (req, res) => {
 app.post('/api/payments', async (req, res) => {
   try {
     const { id, playerId, playerName, coachId, coachName, type, month, amount, date, note } = req.body;
+    const updateData = { 
+      playerName, coachName, type, month, amount, 
+      date: new Date(date), note 
+    };
+    if (playerId) updateData.player = { connect: { id: playerId } };
+    else updateData.player = { disconnect: true };
+
+    if (coachId) updateData.coach = { connect: { id: coachId } };
+    else updateData.coach = { disconnect: true };
+
+    const createData = { 
+      id, playerName, coachName, type, month, amount, 
+      date: new Date(date), note 
+    };
+    if (playerId) createData.player = { connect: { id: playerId } };
+    if (coachId) createData.coach = { connect: { id: coachId } };
+
     const payment = await prisma.payment.upsert({
       where: { id: id || 'new' },
-      update: { playerId, playerName, coachId, coachName, type, month, amount, date: new Date(date), note },
-      create: { id, playerId, playerName, coachId, coachName, type, month, amount, date: new Date(date), note }
+      update: updateData,
+      create: createData
     });
     res.json(payment);
   } catch (e) {
@@ -207,7 +226,13 @@ app.post('/api/attendance', async (req, res) => {
     const att = await prisma.attendance.upsert({
       where: { id: a.id },
       update: { records: a.records },
-      create: { id: a.id, date: new Date(a.date), groupId: a.groupId, coachId: a.coachId, records: a.records }
+      create: { 
+        id: a.id, 
+        date: new Date(a.date), 
+        records: a.records,
+        group: { connect: { id: a.groupId } },
+        coach: a.coachId ? { connect: { id: a.coachId } } : undefined
+      }
     });
     res.json(att);
   } catch (e) {
@@ -242,21 +267,21 @@ app.post('/api/coaches', async (req, res) => {
       update: { 
         specialty: c.specialty, 
         perms: c.perms, 
-        groupId: c.groupId || null, 
-        userId: user.id,
         salary: c.salary ? parseFloat(c.salary) : null,
         exp: c.exp ? parseInt(c.exp) : null,
-        cert: c.cert
+        cert: c.cert,
+        user: { connect: { id: user.id } },
+        group: c.groupId ? { connect: { id: c.groupId } } : { disconnect: true }
       },
       create: { 
         id: c.id, 
         specialty: c.specialty, 
         perms: c.perms, 
-        groupId: c.groupId || null, 
-        userId: user.id,
         salary: c.salary ? parseFloat(c.salary) : null,
         exp: c.exp ? parseInt(c.exp) : null,
-        cert: c.cert
+        cert: c.cert,
+        user: { connect: { id: user.id } },
+        group: c.groupId ? { connect: { id: c.groupId } } : undefined
       }
     });
 
@@ -276,7 +301,7 @@ app.post('/api/coaches', async (req, res) => {
       });
       await prisma.group.update({
         where: { id: c.groupId },
-        data: { coachId: coach.id }
+        data: { coach: { connect: { id: coach.id } } }
       });
     }
 
@@ -304,10 +329,17 @@ app.post('/api/groups', async (req, res) => {
     }
 
     // 2. Upsert Group
+    const updateData = { name: g.name, color: g.color };
+    if (coachId) updateData.coach = { connect: { id: coachId } };
+    else updateData.coach = { disconnect: true };
+
+    const createData = { id: g.id, name: g.name, color: g.color };
+    if (coachId) createData.coach = { connect: { id: coachId } };
+
     const group = await prisma.group.upsert({
       where: { id: g.id || 'new' },
-      update: { name: g.name, color: g.color, coachId: coachId },
-      create: { id: g.id, name: g.name, color: g.color, coachId: coachId }
+      update: updateData,
+      create: createData
     });
 
     // 3. Synchronize Coach table's groupId
@@ -326,7 +358,7 @@ app.post('/api/groups', async (req, res) => {
       });
       await prisma.coach.update({
         where: { id: coachId },
-        data: { groupId: group.id }
+        data: { group: { connect: { id: group.id } } }
       });
     }
 
@@ -361,14 +393,19 @@ app.post('/api/trainings', async (req, res) => {
     const training = await prisma.training.upsert({
       where: { id: t.id || 'new' },
       update: { 
-        groupId: resolvedGroupId, coachId: resolvedCoachId, days: t.days || [], 
+        days: t.days || [], 
         time: t.time || "4:00 م", duration: t.duration ? +t.duration : 90, field: t.field || "ملعب A", 
-        title: t.title, trainingFocus: t.trainingFocus, note: t.note 
+        title: t.title, trainingFocus: t.trainingFocus, note: t.note,
+        group: { connect: { id: resolvedGroupId } },
+        coach: { connect: { id: resolvedCoachId } }
       },
       create: { 
-        id: t.id, groupId: resolvedGroupId, coachId: resolvedCoachId, days: t.days || [], 
+        id: t.id, 
+        days: t.days || [], 
         time: t.time || "4:00 م", duration: t.duration ? +t.duration : 90, field: t.field || "ملعب A", 
-        title: t.title, trainingFocus: t.trainingFocus, note: t.note 
+        title: t.title, trainingFocus: t.trainingFocus, note: t.note,
+        group: { connect: { id: resolvedGroupId } },
+        coach: { connect: { id: resolvedCoachId } }
       }
     });
     res.json(training);
@@ -400,23 +437,23 @@ app.post('/api/evaluations', async (req, res) => {
     const evaluation = await prisma.evaluation.upsert({
       where: { id: e.id || 'new' },
       update: { 
-        playerId: e.playerId, 
-        coachId: e.coachId, 
         date: new Date(e.date), 
         note: e.note, 
         speed: parseInt(e.speed) || 80, 
         technique: parseInt(e.technique) || 80, 
-        teamwork: parseInt(e.teamwork) || 80
+        teamwork: parseInt(e.teamwork) || 80,
+        player: { connect: { id: e.playerId } },
+        coach: { connect: { id: e.coachId } }
       },
       create: { 
         id: e.id, 
-        playerId: e.playerId, 
-        coachId: e.coachId, 
         date: new Date(e.date), 
         note: e.note, 
         speed: parseInt(e.speed) || 80, 
         technique: parseInt(e.technique) || 80, 
-        teamwork: parseInt(e.teamwork) || 80
+        teamwork: parseInt(e.teamwork) || 80,
+        player: { connect: { id: e.playerId } },
+        coach: { connect: { id: e.coachId } }
       }
     });
 
