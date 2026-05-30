@@ -9,6 +9,33 @@ const API_URL = (typeof import.meta !== 'undefined' && import.meta.env && import
     : "https://najd-academy-system-production.up.railway.app"
 );
 
+const isTrainingActive = (tr) => {
+  if (tr.isRecurring || tr.isRecurring === undefined) return true;
+  if (!tr.date) return true;
+  try {
+    const sessionDate = new Date(tr.date);
+    let hours = 16;
+    let minutes = 0;
+    if (tr.time) {
+      const timeStr = tr.time.trim();
+      const match = timeStr.match(/(\d+):(\d+)\s*(م|ص)?/);
+      if (match) {
+        hours = parseInt(match[1]);
+        minutes = parseInt(match[2]);
+        const ampm = match[3];
+        if (ampm === "م" && hours < 12) hours += 12;
+        if (ampm === "ص" && hours === 12) hours = 0;
+      }
+    }
+    sessionDate.setHours(hours, minutes, 0, 0);
+    const durationMin = parseInt(tr.duration) || 90;
+    const expiryTime = sessionDate.getTime() + (durationMin * 60 * 1000);
+    return Date.now() < expiryTime;
+  } catch (e) {
+    return true;
+  }
+};
+
 /* ═══ LOGO ═══════════════════════════════════════════ */
 const NajdLogo = ({ size = 48 }) => {
   return (
@@ -2063,7 +2090,11 @@ function AdminTrainings({ trainings, setTrainings, groups, coaches, t }) {
     field: "ملعب A", 
     title: "", 
     trainingFocus: "", 
-    note: "" 
+    note: "",
+    isRecurring: true,
+    date: "",
+    type: "training",
+    isFriendly: false
   };
   const [form, setForm] = useState(empty);
   const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"];
@@ -2075,6 +2106,14 @@ function AdminTrainings({ trainings, setTrainings, groups, coaches, t }) {
     }
     if (!form.coachId) {
       alert("الرجاء اختيار مدرب");
+      return;
+    }
+    if (!form.isRecurring && !form.date) {
+      alert("الرجاء تحديد تاريخ الموعد لمرة واحدة");
+      return;
+    }
+    if (form.isRecurring && form.days.length === 0) {
+      alert("الرجاء تحديد يوم واحد على الأقل للموعد المتكرر");
       return;
     }
     setTrainings(ts => [...ts, { ...form, id: `tr${Date.now()}` }]);
@@ -2089,9 +2128,9 @@ function AdminTrainings({ trainings, setTrainings, groups, coaches, t }) {
   return (
     <div>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
-        <div style={{ fontWeight: 800, fontSize: 15, color: t.text }}>📅 جدول التمارين</div>
+        <div style={{ fontWeight: 800, fontSize: 15, color: t.text }}>📅 جدول التمارين والمباريات</div>
         <Btn onClick={() => { setForm({ ...empty }); setModal(true); }}>
-          <AnimIcon type="plus" size={14} color="#fff"/> إضافة تمرين
+          <AnimIcon type="plus" size={14} color="#fff"/> إضافة فعالية
         </Btn>
       </div>
 
@@ -2099,15 +2138,24 @@ function AdminTrainings({ trainings, setTrainings, groups, coaches, t }) {
         {trainings.slice().reverse().map(tr => {
           const group = groups.find(g => g.id === tr.groupId);
           const coach = coaches.find(c => c.id === tr.coachId);
+          const typeLabel = tr.type === "match" ? (tr.isFriendly ? "مباراة ودية" : "مباراة رسمية") : "تمرين";
+          const typeColor = tr.type === "match" ? "#EF4444" : "#06B6D4";
           return (
             <Card key={tr.id} t={t} style={{ padding: 20, borderLeft: `4px solid ${group?.color || t.purple}` }}>
               <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
                 <Chip text={group?.name} color={group?.color}/>
-                <div style={{ display: "flex", gap: 5 }}>
-                  {tr.days?.map(d => <Chip key={d} text={d} color={t.textDim} size={9}/>)}
+                <div style={{ display: "flex", gap: 5, alignItems: "center" }}>
+                  <Chip text={typeLabel} color={typeColor} size={9}/>
+                  {tr.isRecurring ? (
+                    tr.days?.map(d => <Chip key={d} text={d} color={t.textDim} size={9}/>)
+                  ) : (
+                    <span style={{ fontSize: 11, color: t.textDim, fontWeight: 700 }}>
+                      📅 {tr.date ? new Date(tr.date).toLocaleDateString("ar-EG", { day: 'numeric', month: 'short' }) : "مرة واحدة"}
+                    </span>
+                  )}
                 </div>
               </div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: t.text, marginBottom: 8 }}>{tr.title}</div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: t.text, marginBottom: 8 }}>{tr.title || (tr.type === "match" ? "مباراة" : "تمرين")}</div>
               <div style={{ display: "flex", gap: 15, fontSize: 12, color: t.textDim, flexWrap: "wrap" }}>
                 <span>⏰ {tr.time} ({tr.duration} دق)</span>
                 <span>🏟 {tr.field}</span>
@@ -2124,37 +2172,49 @@ function AdminTrainings({ trainings, setTrainings, groups, coaches, t }) {
       </div>
 
       {modal && (
-        <Modal title="إضافة موعد تدريب" onClose={() => setModal(false)} t={t}>
-          <Input label="المجموعة / الفريق" value={form.groupId} onChange={handleGroupChange} options={groups.map(g => ({ v: g.id, l: g.name }))} t={t}/>
-          <Input label="المدرب" value={form.coachId} onChange={v => setForm(f => ({ ...f, coachId: v }))} options={coaches.map(c => ({ v: c.id, l: c.name }))} t={t}/>
-          <Input label="عنوان التمرين" value={form.title} onChange={v => setForm(f => ({ ...f, title: v }))} placeholder="مثال: مهارات التسديد" t={t}/>
-          
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ fontSize: 11, color: t.textDim, fontWeight: 600, display: "block", marginBottom: 8 }}>أيام التدريب</label>
-            <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-              {DAYS.map(d => (
-                <button key={d} onClick={() => setForm(f => ({ ...f, days: f.days.includes(d) ? f.days.filter(x => x !== d) : [...f.days, d] }))}
-                  style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid", borderColor: form.days.includes(d) ? t.purple : t.border2, background: form.days.includes(d) ? `${t.purple}18` : t.inputBg, color: form.days.includes(d) ? t.purple : t.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
-                  {d}
-                </button>
-              ))}
-            </div>
+        <Modal title="إضافة موعد فعالية" onClose={() => setModal(false)} t={t}>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Input label="نوع الفعالية" value={form.type} onChange={v => setForm(f => ({ ...f, type: v, isFriendly: v === "match" ? f.isFriendly : false }))} options={[{ v: "training", l: "تمرين" }, { v: "match", l: "مباراة" }]} t={t}/>
+            <Input label="طريقة التكرار" value={form.isRecurring ? "recurring" : "once"} onChange={v => setForm(f => ({ ...f, isRecurring: v === "recurring" }))} options={[{ v: "recurring", l: "متكرر أسبوعياً" }, { v: "once", l: "مرة واحدة" }]} t={t}/>
           </div>
 
+          {form.type === "match" && (
+            <div style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 8 }}>
+              <input type="checkbox" id="isFriendly" checked={form.isFriendly} onChange={e => setForm(f => ({ ...f, isFriendly: e.target.checked }))} style={{ width: 16, height: 16, accentColor: t.purple, cursor: "pointer" }} />
+              <label htmlFor="isFriendly" style={{ fontSize: 12, color: t.text, fontWeight: 700, cursor: "pointer" }}>مباراة ودية</label>
+            </div>
+          )}
+
+          <Input label="المجموعة / الفريق" value={form.groupId} onChange={handleGroupChange} options={groups.map(g => ({ v: g.id, l: g.name }))} t={t}/>
+          <Input label="المدرب المسؤول" value={form.coachId} onChange={v => setForm(f => ({ ...f, coachId: v }))} options={coaches.map(c => ({ v: c.id, l: c.name }))} t={t}/>
+          <Input label="العنوان / الاسم" value={form.title} onChange={v => setForm(f => ({ ...f, title: v }))} placeholder="مثال: مباراة ودية ضد نادي النصر" t={t}/>
+          
+          {form.isRecurring ? (
+            <div style={{ marginBottom: 14 }}>
+              <label style={{ fontSize: 11, color: t.textDim, fontWeight: 600, display: "block", marginBottom: 8 }}>أيام التدريب</label>
+              <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                {DAYS.map(d => (
+                  <button key={d} onClick={() => setForm(f => ({ ...f, days: f.days.includes(d) ? f.days.filter(x => x !== d) : [...f.days, d] }))}
+                    style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid", borderColor: form.days.includes(d) ? t.purple : t.border2, background: form.days.includes(d) ? `${t.purple}18` : t.inputBg, color: form.days.includes(d) ? t.purple : t.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <Input label="التاريخ" value={form.date || ""} onChange={v => setForm(f => ({ ...f, date: v }))} type="date" t={t}/>
+          )}
+
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Input label="التاريخ (اختياري)" value={form.date || ""} onChange={v => setForm(f => ({ ...f, date: v }))} type="date" t={t}/>
-            <Input label="الوقت" value={form.time} onChange={v => setForm(f => ({ ...f, time: v }))} t={t}/>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Input label="الوقت" value={form.time} onChange={v => setForm(f => ({ ...f, time: v }))} t={t}/>
+            <Input label="الوقت" value={form.time} onChange={v => setForm(f => ({ ...f, time: v }))} placeholder="مثال: 4:00 م" t={t}/>
             <Input label="المدة (دقيقة)" value={form.duration} onChange={v => setForm(f => ({ ...f, duration: +v }))} type="number" t={t}/>
           </div>
           <Input label="الملعب" value={form.field} onChange={v => setForm(f => ({ ...f, field: v }))} t={t}/>
-          <Input label="تركيز التدريب (المهارة)" value={form.trainingFocus} onChange={v => setForm(f => ({ ...f, trainingFocus: v }))} placeholder="مثال: تمرير قصير" t={t}/>
-          <Input label="ملاحظات" value={form.note} onChange={v => setForm(f => ({ ...f, note: v }))} placeholder="اختياري" t={t}/>
+          <Input label="التركيز الفني / المهارات" value={form.trainingFocus} onChange={v => setForm(f => ({ ...f, trainingFocus: v }))} placeholder="مثال: التمركز والدفاع" t={t}/>
+          <Input label="ملاحظات" value={form.note} onChange={v => setForm(f => ({ ...f, note: v }))} placeholder="أدخل أي ملاحظات إضافية هنا..." t={t}/>
           
           <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
-            <Btn onClick={save} style={{ flex: 1 }}>💾 حفظ التمرين</Btn>
+            <Btn onClick={save} style={{ flex: 1 }}>💾 حفظ الفعالية</Btn>
             <Btn variant="secondary" onClick={() => setModal(false)}>إلغاء</Btn>
           </div>
         </Modal>
@@ -2282,20 +2342,16 @@ function CoachPortal({ user, onLogout, groups, coaches, players, parents, paymen
   );
 }
 
-/* ── Coach Home ─────────────────────────────────────── */
 function CoachHome({ coach, group, groups, myPlayers, attendance, evals, trainings, t }) {
   const lastAtt = attendance.filter(a => a.coachId === coach.id).slice(-1)[0];
   const avgScore = myPlayers.length ? Math.round(myPlayers.reduce((a, p) => a + p.score, 0) / myPlayers.length) : 0;
-  const myTrainings = (trainings || []).filter(tr => tr.groupId === coach.groupId);
-  
+  const myTrainings = (trainings || []).filter(tr => tr.groupId === coach.groupId && isTrainingActive(tr));
   const currentDayAr = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"][new Date().getDay()];
-  const todayTr = myTrainings.find(tr => tr.days.includes(currentDayAr));
-  const primaryTr = todayTr || myTrainings[0];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* 1. Upcoming Trainings Timeline Card */}
-      {primaryTr && (
+      {myTrainings.length > 0 && (
         <Card t={t} style={{ 
           padding: 24, 
           background: t.name === "dark" 
@@ -2320,87 +2376,110 @@ function CoachHome({ coach, group, groups, myPlayers, attendance, evals, trainin
             filter: "blur(25px)"
           }} />
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, position: "relative", zIndex: 1 }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                <span style={{ fontSize: 20 }}>📅</span>
-                <span style={{ fontSize: 13, fontWeight: 800, color: t.name === "dark" ? "#67e8f9" : "#0891b2", letterSpacing: 0.5 }}>مواعيد التدريب لمجموعتك</span>
-                {todayTr ? (
-                  <span style={{
-                    background: "#ef4444",
-                    color: "#fff",
-                    fontSize: 10,
-                    fontWeight: 900,
-                    padding: "3px 10px",
-                    borderRadius: 20,
-                    animation: "pulse 1.8s infinite",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 5
-                  }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff", display: "inline-block" }} />
-                    تمرين اليوم!
-                  </span>
-                ) : (
-                  <span style={{
-                    background: t.name === "dark" ? "rgba(6,182,212,0.2)" : "rgba(6,182,212,0.12)",
-                    color: t.name === "dark" ? "#22d3ee" : "#0891b2",
-                    fontSize: 10,
-                    fontWeight: 800,
-                    padding: "3px 10px",
-                    borderRadius: 20
-                  }}>
-                    مجدول
-                  </span>
-                )}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, position: "relative", zIndex: 1, flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 22 }}>📅</span>
+              <div>
+                <span style={{ fontSize: 14, fontWeight: 800, color: t.name === "dark" ? "#67e8f9" : "#0891b2" }}>مواعيد الفعاليات والتمارين القادمة لمجموعتك</span>
+                <div style={{ fontSize: 11, color: t.textDim }}>المجموعة: {group?.name || ""}</div>
               </div>
-              
-              <div style={{ fontSize: 26, fontWeight: 900, color: t.text, marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
-                <span>{primaryTr.days.join(" و ")}</span>
-                <span style={{ fontSize: 16, color: "#06B6D4" }}>•</span>
-                <span style={{ color: "#06B6D4" }}>الساعة {primaryTr.time}</span>
-              </div>
-              
-              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 13, color: t.textDim, marginBottom: 16 }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span>🏟️</span> {primaryTr.field || "غير محدد"}
-                </span>
-                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span>⏱️</span> {primaryTr.duration || 0} دقيقة
-                </span>
-              </div>
-
-              {primaryTr.trainingFocus && (
-                <div style={{ 
-                  background: t.name === "dark" ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)", 
-                  border: `1px solid ${t.border}`, 
-                  borderRadius: 12, 
-                  padding: "10px 16px",
-                  display: "inline-flex",
-                  flexDirection: "column",
-                  gap: 4
-                }}>
-                  <span style={{ fontSize: 10, color: t.textFaint, fontWeight: 800, textTransform: "uppercase" }}>🎯 التركيز التدريبي اليوم</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{primaryTr.trainingFocus}</span>
-                </div>
-              )}
             </div>
-
+            
             <div style={{ 
-              background: t.name === "dark" ? "rgba(0,0,0,0.25)" : "rgba(255,255,255,0.75)", 
-              padding: "14px 20px", 
-              borderRadius: 18, 
+              background: t.name === "dark" ? "rgba(0,0,0,0.2)" : "rgba(255,255,255,0.6)", 
+              padding: "6px 12px", 
+              borderRadius: 12, 
               border: `1px solid ${t.border}`,
               display: "flex",
-              flexDirection: "column",
               alignItems: "center",
-              justifyContent: "center",
-              minWidth: 100,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.02)"
+              gap: 8
             }}>
-              <div style={{ fontSize: 32, fontWeight: 900, color: "#06B6D4", lineHeight: 1 }}>{myPlayers.length}</div>
-              <div style={{ fontSize: 10, color: t.textFaint, fontWeight: 700, marginTop: 4 }}>لاعب في المجموعة</div>
+              <div style={{ fontSize: 16, fontWeight: 900, color: "#06B6D4" }}>{myPlayers.length}</div>
+              <div style={{ fontSize: 10, color: t.textDim, fontWeight: 700 }}>لاعب في المجموعة</div>
             </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14, position: "relative", zIndex: 1 }}>
+            {myTrainings.map((tr, idx) => {
+              const isToday = tr.isRecurring ? tr.days.includes(currentDayAr) : (tr.date && new Date(tr.date).toDateString() === new Date().toDateString());
+              const typeLabel = tr.type === "match" ? (tr.isFriendly ? "مباراة ودية" : "مباراة") : "تمرين";
+              const typeColor = tr.type === "match" ? "#EF4444" : "#06B6D4";
+              
+              return (
+                <div key={tr.id} style={{ 
+                  background: isToday 
+                    ? (t.name === "dark" ? "rgba(6,182,212,0.18)" : "rgba(6,182,212,0.08)")
+                    : (t.name === "dark" ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.5)"), 
+                  border: `1px solid ${isToday ? typeColor : t.border}`,
+                  borderRadius: 16,
+                  padding: 16,
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  boxShadow: isToday ? `0 4px 15px ${typeColor}15` : "none",
+                  transition: "transform 0.2s"
+                }}>
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                      <span style={{
+                        background: typeColor,
+                        color: "#fff",
+                        fontSize: 10,
+                        fontWeight: 900,
+                        padding: "3px 8px",
+                        borderRadius: 20
+                      }}>
+                        {typeLabel}
+                      </span>
+                      {isToday && (
+                        <span style={{
+                          background: "#EF4444",
+                          color: "#fff",
+                          fontSize: 9,
+                          fontWeight: 900,
+                          padding: "2px 6px",
+                          borderRadius: 20,
+                          animation: "pulse 1.8s infinite"
+                        }}>
+                          اليوم
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div style={{ fontSize: 16, fontWeight: 900, color: t.text, marginBottom: 4 }}>
+                      {tr.isRecurring ? tr.days.join(" و ") : (tr.date ? new Date(tr.date).toLocaleDateString("ar-EG", { weekday: 'long', day: 'numeric', month: 'short' }) : "مرة واحدة")}
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: typeColor, marginBottom: 8 }}>
+                      الساعة {tr.time} ({tr.duration} دقيقة)
+                    </div>
+                    
+                    <div style={{ fontSize: 12, color: t.text, fontWeight: 800, marginBottom: 4 }}>
+                      {tr.title || (tr.type === "match" ? "مباراة كرة قدم" : "تمرين اعتيادي")}
+                    </div>
+                    
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 11, color: t.textDim, marginBottom: 8 }}>
+                      <span>🏟️ {tr.field}</span>
+                      {tr.trainingFocus && <span>🎯 {tr.trainingFocus}</span>}
+                    </div>
+                  </div>
+
+                  {tr.note && (
+                    <div style={{ 
+                      marginTop: 8, 
+                      padding: "6px 10px", 
+                      background: t.name === "dark" ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)", 
+                      borderRadius: 8, 
+                      fontSize: 10, 
+                      color: t.textFaint, 
+                      fontStyle: "italic",
+                      borderRight: `2px solid ${typeColor}`
+                    }}>
+                      * {tr.note}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}
@@ -2481,40 +2560,60 @@ function CoachHome({ coach, group, groups, myPlayers, attendance, evals, trainin
 /* ── Coach Sessions ─────────────────────────────────── */
 function CoachSessions({ coach, group, groups, trainings, t }) {
   if (!group) return <div style={{ textAlign: "center", color: t.textFaint, padding: 60 }}>لا توجد مجموعة محددة</div>;
-  const myTrainings = trainings.filter(tr => tr.groupId === coach.groupId);
+  const myTrainings = trainings.filter(tr => tr.groupId === coach.groupId && isTrainingActive(tr));
   
   return (
     <div>
       <Card t={t} style={{ padding: 24, marginBottom: 16, background: t.name === "dark" ? "linear-gradient(135deg,#060A20,#0A1030)" : "linear-gradient(135deg,#EFF8FF,#F0FBFF)", borderColor: "rgba(6,182,212,.2)" }} className="s1">
-        <div style={{ fontWeight: 700, fontSize: 14, color: "#06B6D4", marginBottom: 4 }}>📅 الجدول الأسبوعي لمجموعة {group.name}</div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 14 }}>
-          {myTrainings.map((tr, i) => (
-            <div key={tr.id} style={{ background: "rgba(6,182,212,.07)", border: "1px solid rgba(6,182,212,.15)", borderRadius: 14, padding: 18 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                <div style={{ width: 46, height: 46, borderRadius: 12, background: "rgba(6,182,212,.15)", border: "1px solid rgba(6,182,212,.3)", display: "grid", placeItems: "center", fontSize: 20 }}>📅</div>
-                <div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: "#06B6D4" }}>{tr.days.join(" · ")}</div>
-                  <div style={{ fontSize: 12, color: t.textDim }}>{tr.time} · {tr.duration} دق</div>
+        <div style={{ fontWeight: 700, fontSize: 14, color: "#06B6D4", marginBottom: 12 }}>📅 الجدول الفعلي لمجموعة {group.name}</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(240px,1fr))", gap: 14 }}>
+          {myTrainings.map((tr, i) => {
+            const typeLabel = tr.type === "match" ? (tr.isFriendly ? "مباراة ودية" : "مباراة") : "تمرين";
+            const typeColor = tr.type === "match" ? "#EF4444" : "#06B6D4";
+            return (
+              <div key={tr.id} style={{ background: "rgba(6,182,212,.07)", border: "1px solid rgba(6,182,212,.15)", borderRadius: 14, padding: 18 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                  <div style={{ width: 46, height: 46, borderRadius: 12, background: "rgba(6,182,212,.15)", border: "1px solid rgba(6,182,212,.3)", display: "grid", placeItems: "center", fontSize: 20 }}>
+                    {tr.type === "match" ? "⚽" : "🏃‍♂️"}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "#06B6D4" }}>
+                      {tr.isRecurring ? tr.days.join(" · ") : (tr.date ? new Date(tr.date).toLocaleDateString("ar-EG", { day: 'numeric', month: 'short' }) : "مرة واحدة")}
+                    </div>
+                    <div style={{ fontSize: 12, color: t.textDim }}>{tr.time} · {tr.duration} دق</div>
+                  </div>
                 </div>
+                <div style={{ display: "flex", gap: 5, marginBottom: 6 }}>
+                  <Chip text={typeLabel} color={typeColor} size={9}/>
+                  <Chip text={tr.isRecurring ? "متكرر" : "مرة واحدة"} color={t.textDim} size={9}/>
+                </div>
+                <div style={{ fontSize: 12, color: t.text, fontWeight: 700 }}>{tr.title || (tr.type === "match" ? "مباراة" : "تمرين")}</div>
+                <div style={{ fontSize: 11, color: t.textDim }}>🏟 {tr.field}</div>
+                {tr.trainingFocus && <div style={{ fontSize: 11, color: "#06B6D4", fontWeight: 700, marginTop: 6 }}>🎯 {tr.trainingFocus}</div>}
               </div>
-              <div style={{ fontSize: 12, color: t.textDim }}>🏟 {tr.field}</div>
-              <div style={{ fontSize: 11, color: "#06B6D4", fontWeight: 700, marginTop: 6 }}>🎯 {tr.trainingFocus}</div>
-            </div>
-          ))}
-          {myTrainings.length === 0 && <div style={{ padding: 20, color: t.textDim }}>لا توجد تمارين مجدولة حالياً</div>}
+            );
+          })}
+          {myTrainings.length === 0 && <div style={{ padding: 20, color: t.textDim }}>لا توجد فعاليات مجدولة حالياً</div>}
         </div>
       </Card>
       <Card t={t} style={{ padding: 22, marginBottom: 16 }} className="s2">
-        <div style={{ fontWeight: 700, fontSize: 13, color: t.text, marginBottom: 16 }}>📋 خطة التدريب الأسبوعية</div>
+        <div style={{ fontWeight: 700, fontSize: 13, color: t.text, marginBottom: 16 }}>📋 خطة التدريب والفعاليات الأسبوعية</div>
         {myTrainings.map((tr, i) => {
           const colors = ["#06B6D4", "#A855F7"];
           return (
             <div key={tr.id} style={{ background: `${colors[i % 2]}08`, border: `1px solid ${colors[i % 2]}20`, borderRadius: 12, padding: 18, marginBottom: 10 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                <span style={{ fontSize: 22 }}>⚽</span>
+                <span style={{ fontSize: 22 }}>{tr.type === "match" ? "🏆" : "⚽"}</span>
                 <div>
-                  <div style={{ display: "flex", gap: 4 }}>{tr.days.map(d => <Chip key={d} text={d} color={colors[i % 2]}/>)}</div>
-                  <div style={{ fontSize: 14, fontWeight: 700, color: colors[i % 2], marginTop: 4 }}>{tr.title} — {tr.trainingFocus}</div>
+                  <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                    {tr.isRecurring ? (
+                      tr.days.map(d => <Chip key={d} text={d} color={colors[i % 2]}/>)
+                    ) : (
+                      <Chip text={tr.date ? new Date(tr.date).toLocaleDateString("ar-EG", { weekday: 'long', day: 'numeric', month: 'long' }) : ""} color="#EF4444"/>
+                    )}
+                    <Chip text={tr.type === "match" ? (tr.isFriendly ? "مباراة ودية" : "مباراة") : "تمرين"} color={colors[i % 2]}/>
+                  </div>
+                  <div style={{ fontSize: 14, fontWeight: 700, color: colors[i % 2], marginTop: 4 }}>{tr.title || (tr.type === "match" ? "مباراة" : "تمرين")} — {tr.trainingFocus || "مهارات"}</div>
                 </div>
               </div>
               {tr.note && <div style={{ fontSize: 11, color: t.textDim, fontStyle: "italic" }}>* {tr.note}</div>}
@@ -2858,15 +2957,13 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
   const totalPaid = childPays.reduce((a, p) => a + p.amount, 0);
 
   // Next / Upcoming training logic
-  const childTrainings = (trainings || []).filter(tr => tr.groupId === child.groupId);
+  const childTrainings = (trainings || []).filter(tr => tr.groupId === child.groupId && isTrainingActive(tr));
   const currentDayAr = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"][new Date().getDay()];
-  const todayTr = childTrainings.find(tr => tr.days.includes(currentDayAr));
-  const primaryTr = todayTr || childTrainings[0];
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* 1. Upcoming Training Card - VERY FIRST THING */}
-      {primaryTr && (
+      {/* 1. Upcoming Trainings Container */}
+      {childTrainings.length > 0 && (
         <Card t={t} style={{ 
           padding: 24, 
           background: t.name === "dark" 
@@ -2891,89 +2988,114 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
             filter: "blur(25px)"
           }} />
 
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 16, position: "relative", zIndex: 1 }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
-                <span style={{ fontSize: 20 }}>⚽</span>
-                <span style={{ fontSize: 13, fontWeight: 800, color: t.name === "dark" ? "#a7f3d0" : "#059669", letterSpacing: 0.5 }}>التدريب القادم للابن</span>
-                {todayTr ? (
-                  <span style={{
-                    background: "#ef4444",
-                    color: "#fff",
-                    fontSize: 10,
-                    fontWeight: 900,
-                    padding: "3px 10px",
-                    borderRadius: 20,
-                    animation: "pulse 1.8s infinite",
-                    display: "inline-flex",
-                    alignItems: "center",
-                    gap: 5
-                  }}>
-                    <span style={{ width: 6, height: 6, borderRadius: "50%", background: "#fff", display: "inline-block" }} />
-                    تمرين اليوم!
-                  </span>
-                ) : (
-                  <span style={{
-                    background: t.name === "dark" ? "rgba(16,185,129,0.2)" : "rgba(16,185,129,0.12)",
-                    color: t.name === "dark" ? "#34d399" : "#059669",
-                    fontSize: 10,
-                    fontWeight: 800,
-                    padding: "3px 10px",
-                    borderRadius: 20
-                  }}>
-                    مجدول
-                  </span>
-                )}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 18, position: "relative", zIndex: 1, flexWrap: "wrap", gap: 12 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 22 }}>⚽</span>
+              <div>
+                <span style={{ fontSize: 14, fontWeight: 800, color: t.name === "dark" ? "#a7f3d0" : "#059669" }}>الجدول القادم للابن {child.name}</span>
+                <div style={{ fontSize: 11, color: t.textDim }}>الفريق: {childGroup?.name || ""}</div>
               </div>
-              
-              <div style={{ fontSize: 26, fontWeight: 900, color: t.text, marginBottom: 8, display: "flex", alignItems: "center", gap: 10 }}>
-                <span>{primaryTr.days.join(" و ")}</span>
-                <span style={{ fontSize: 16, color: "#10b981" }}>•</span>
-                <span style={{ color: "#10b981" }}>الساعة {primaryTr.time}</span>
-              </div>
-              
-              <div style={{ display: "flex", gap: 16, flexWrap: "wrap", fontSize: 13, color: t.textDim, marginBottom: 16 }}>
-                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span>🏟️</span> {primaryTr.field || "غير محدد"}
-                </span>
-                <span style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span>⏱️</span> {primaryTr.duration || 0} دقيقة
-                </span>
-              </div>
-
-              {primaryTr.trainingFocus && (
-                <div style={{ 
-                  background: t.name === "dark" ? "rgba(255,255,255,0.04)" : "rgba(0,0,0,0.02)", 
-                  border: `1px solid ${t.border}`, 
-                  borderRadius: 12, 
-                  padding: "10px 16px",
-                  display: "inline-flex",
-                  flexDirection: "column",
-                  gap: 4
-                }}>
-                  <span style={{ fontSize: 10, color: t.textFaint, fontWeight: 800, textTransform: "uppercase" }}>🎯 التركيز التدريبي اليوم</span>
-                  <span style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{primaryTr.trainingFocus}</span>
-                </div>
-              )}
             </div>
-
+            
             <div style={{ 
               background: t.name === "dark" ? "rgba(0,0,0,0.25)" : "rgba(255,255,255,0.75)", 
-              padding: "14px 20px", 
-              borderRadius: 18, 
+              padding: "8px 16px", 
+              borderRadius: 14, 
               border: `1px solid ${t.border}`,
               display: "flex",
               alignItems: "center",
-              gap: 12,
+              gap: 10,
               boxShadow: "0 4px 12px rgba(0,0,0,0.02)"
             }}>
-              <Avatar name={childCoach?.name || "كابتن"} size={42} color="#7C49A8" />
-              <div>
-                <div style={{ fontSize: 10, color: t.textFaint, fontWeight: 700 }}>المدرب المسؤول</div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: t.text }}>{childCoach?.name || "طاقم التدريب"}</div>
-                <div style={{ fontSize: 11, color: "#7C49A8", fontWeight: 700 }}>{childCoach?.specialty || "مدرب معتمد"}</div>
+              <Avatar name={childCoach?.name || "كابتن"} size={32} color="#7C49A8" />
+              <div style={{ textAlign: "right" }}>
+                <div style={{ fontSize: 9, color: t.textFaint, fontWeight: 700 }}>المدرب المسؤول</div>
+                <div style={{ fontSize: 12, fontWeight: 800, color: t.text }}>{childCoach?.name || "طاقم التدريب"}</div>
               </div>
             </div>
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 14, position: "relative", zIndex: 1 }}>
+            {childTrainings.map((tr, idx) => {
+              const isToday = tr.isRecurring ? tr.days.includes(currentDayAr) : (tr.date && new Date(tr.date).toDateString() === new Date().toDateString());
+              const typeLabel = tr.type === "match" ? (tr.isFriendly ? "مباراة ودية" : "مباراة") : "تمرين";
+              const typeColor = tr.type === "match" ? "#EF4444" : "#10B981";
+              
+              return (
+                <div key={tr.id} style={{ 
+                  background: isToday 
+                    ? (t.name === "dark" ? "rgba(16,185,129,0.18)" : "rgba(16,185,129,0.08)")
+                    : (t.name === "dark" ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.5)"), 
+                  border: `1px solid ${isToday ? typeColor : t.border}`,
+                  borderRadius: 16,
+                  padding: 16,
+                  display: "flex",
+                  flexDirection: "column",
+                  justifyContent: "space-between",
+                  boxShadow: isToday ? `0 4px 15px ${typeColor}15` : "none",
+                  transition: "transform 0.2s"
+                }}>
+                  <div>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+                      <span style={{
+                        background: typeColor,
+                        color: "#fff",
+                        fontSize: 10,
+                        fontWeight: 900,
+                        padding: "3px 8px",
+                        borderRadius: 20
+                      }}>
+                        {typeLabel}
+                      </span>
+                      {isToday && (
+                        <span style={{
+                          background: "#EF4444",
+                          color: "#fff",
+                          fontSize: 9,
+                          fontWeight: 900,
+                          padding: "2px 6px",
+                          borderRadius: 20,
+                          animation: "pulse 1.8s infinite"
+                        }}>
+                          اليوم
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div style={{ fontSize: 16, fontWeight: 900, color: t.text, marginBottom: 4 }}>
+                      {tr.isRecurring ? tr.days.join(" و ") : (tr.date ? new Date(tr.date).toLocaleDateString("ar-EG", { weekday: 'long', day: 'numeric', month: 'short' }) : "مرة واحدة")}
+                    </div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: typeColor, marginBottom: 8 }}>
+                      الساعة {tr.time} ({tr.duration} دقيقة)
+                    </div>
+                    
+                    <div style={{ fontSize: 12, color: t.text, fontWeight: 800, marginBottom: 4 }}>
+                      {tr.title || (tr.type === "match" ? "مباراة كرة قدم" : "تمرين اعتيادي")}
+                    </div>
+                    
+                    <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 11, color: t.textDim, marginBottom: 8 }}>
+                      <span>🏟️ {tr.field}</span>
+                      {tr.trainingFocus && <span>🎯 {tr.trainingFocus}</span>}
+                    </div>
+                  </div>
+
+                  {tr.note && (
+                    <div style={{ 
+                      marginTop: 8, 
+                      padding: "6px 10px", 
+                      background: t.name === "dark" ? "rgba(255,255,255,0.02)" : "rgba(0,0,0,0.02)", 
+                      borderRadius: 8, 
+                      fontSize: 10, 
+                      color: t.textFaint, 
+                      fontStyle: "italic",
+                      borderRight: `2px solid ${typeColor}`
+                    }}>
+                      * {tr.note}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </Card>
       )}
@@ -3247,7 +3369,7 @@ function ParentPayments({ child, childPays, prices, t }) {
 
 function ParentSchedule({ childGroup, childCoach, trainings, t }) {
   if (!childGroup) return <div style={{ textAlign: "center", color: t.textFaint, padding: 60 }}>لا توجد بيانات</div>;
-  const myTrainings = (trainings || []).filter(tr => tr.groupId === childGroup.id);
+  const myTrainings = (trainings || []).filter(tr => tr.groupId === childGroup.id && isTrainingActive(tr));
   
   return (
     <div>
@@ -3257,18 +3379,28 @@ function ParentSchedule({ childGroup, childCoach, trainings, t }) {
             <AnimIcon type="schedule" size={24} color="#7C49A8"/>
           </div>
           <div>
-            <div style={{ fontWeight: 800, fontSize: 16, color: t.text }}>الجدول الزمني للتمارين</div>
+            <div style={{ fontWeight: 800, fontSize: 16, color: t.text }}>الجدول الزمني للفعاليات والتمارين</div>
             <div style={{ fontSize: 12, color: t.textDim }}>مجموعة {childGroup.name} · مدرب {childCoach?.name}</div>
           </div>
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(200px,1fr))", gap: 14 }}>
-          {myTrainings.map((tr, i) => (
-            <div key={tr.id} style={{ background: t.bg, borderRadius: 10, padding: 14, border: `1px solid ${t.border}` }}>
-              <div style={{ fontSize: 11, color: t.textDim, marginBottom: 6 }}>{tr.days.join(" و ")}</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: "#10B981" }}>{tr.time}</div>
-              <div style={{ fontSize: 11, color: t.textDim, marginTop: 4 }}>🏟 {tr.field} · ⏱ {tr.duration} دق</div>
-            </div>
-          ))}
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 14 }}>
+          {myTrainings.map((tr, i) => {
+            const typeLabel = tr.type === "match" ? (tr.isFriendly ? "مباراة ودية" : "مباراة") : "تمرين";
+            const typeColor = tr.type === "match" ? "#EF4444" : "#10B981";
+            return (
+              <div key={tr.id} style={{ background: t.bg, borderRadius: 10, padding: 14, border: `1px solid ${t.border}` }}>
+                <div style={{ display: "flex", gap: 4, marginBottom: 6 }}>
+                  <Chip text={typeLabel} color={typeColor} size={9}/>
+                  <Chip text={tr.isRecurring ? "متكرر" : "مرة واحدة"} color={t.textDim} size={9}/>
+                </div>
+                <div style={{ fontSize: 12, color: t.textDim, marginBottom: 6 }}>
+                  {tr.isRecurring ? tr.days.join(" و ") : (tr.date ? new Date(tr.date).toLocaleDateString("ar-EG", { day: 'numeric', month: 'short' }) : "مرة واحدة")}
+                </div>
+                <div style={{ fontSize: 14, fontWeight: 800, color: typeColor }}>{tr.time}</div>
+                <div style={{ fontSize: 11, color: t.textDim, marginTop: 4 }}>🏟 {tr.field} · ⏱ {tr.duration} دق</div>
+              </div>
+            );
+          })}
           {myTrainings.length === 0 && <div style={{ color: t.textDim }}>لا توجد تمارين محددة بعد</div>}
         </div>
       </Card>
@@ -3277,36 +3409,42 @@ function ParentSchedule({ childGroup, childCoach, trainings, t }) {
         <Card t={t} style={{ padding: 22 }} className="s2">
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 18 }}>
             <div style={{ fontWeight: 800, fontSize: 14, color: t.text, display: "flex", alignItems: "center", gap: 8 }}>
-              <AnimIcon type="trophy" size={16} color="#D8A435"/> التمارين القادمة
+              <AnimIcon type="trophy" size={16} color="#D8A435"/> الفعاليات القادمة
             </div>
-            <Chip text={`${myTrainings.length} تمرين مجدول`} color="#7C49A8"/>
+            <Chip text={`${myTrainings.length} فعالية مجدولة`} color="#7C49A8"/>
           </div>
           
           {myTrainings.length === 0 ? (
             <div style={{ textAlign: "center", padding: "40px 0", color: t.textFaint }}>
               <div style={{ fontSize: 32, marginBottom: 10 }}>📅</div>
-              <div style={{ fontSize: 13 }}>لا توجد تمارين إضافية مجدولة حالياً</div>
+              <div style={{ fontSize: 13 }}>لا توجد تمارين أو مباريات إضافية مجدولة حالياً</div>
             </div>
           ) : (
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               {myTrainings.slice().reverse().map((tr, idx) => {
                 const trDate = tr.date ? new Date(tr.date) : null;
-                const dateNum = trDate ? trDate.getDate() : "?";
-                const monthName = trDate ? trDate.toLocaleDateString('ar-SA', { month: 'short' }) : (tr.days?.[0] || "موعد");
+                const dateNum = trDate ? trDate.getDate() : (tr.isRecurring ? "🔄" : "?");
+                const monthName = trDate ? trDate.toLocaleDateString('ar-EG', { month: 'short' }) : (tr.days?.[0] || "موعد");
+                const typeLabel = tr.type === "match" ? (tr.isFriendly ? "مباراة ودية" : "مباراة") : "تمرين";
+                const typeColor = tr.type === "match" ? "#EF4444" : "#7C49A8";
                 
                 return (
                   <div key={tr.id} style={{ display: "flex", gap: 16, padding: 16, borderRadius: 14, background: t.bg3, border: `1px solid ${t.border}`, animation: `fadeUp .4s ${idx * 0.1}s both` }}>
                     <div style={{ width: 60, textAlign: "center", flexShrink: 0 }}>
-                      <div style={{ fontSize: 20, fontWeight: 900, color: "#7C49A8" }}>{dateNum}</div>
+                      <div style={{ fontSize: 20, fontWeight: 900, color: typeColor }}>{dateNum}</div>
                       <div style={{ fontSize: 10, color: t.textDim, textTransform: "uppercase" }}>{monthName}</div>
                     </div>
                     <div style={{ flex: 1 }}>
-                      <div style={{ fontWeight: 800, fontSize: 14, color: t.text, marginBottom: 4 }}>{tr.title || "تمرين دوري"}</div>
+                      <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+                        <Chip text={typeLabel} color={typeColor} size={9}/>
+                        <Chip text={tr.isRecurring ? "متكرر" : "مرة واحدة"} color={t.textDim} size={9}/>
+                      </div>
+                      <div style={{ fontWeight: 800, fontSize: 14, color: t.text, marginBottom: 4 }}>{tr.title || (tr.type === "match" ? "مباراة" : "تمرين")}</div>
                       <div style={{ display: "flex", gap: 12, fontSize: 11, color: t.textDim }}>
                         <span>⏰ {tr.time}</span>
                         <span>🏟 {tr.field}</span>
                       </div>
-                      {tr.note && <div style={{ marginTop: 8, padding: "8px 12px", background: "rgba(124,73,168,.05)", borderRadius: 8, fontSize: 11, color: t.textMid, borderRight: "3px solid #7C49A8" }}>{tr.note}</div>}
+                      {tr.note && <div style={{ marginTop: 8, padding: "8px 12px", background: "rgba(124,73,168,.05)", borderRadius: 8, fontSize: 11, color: t.textMid, borderRight: `3px solid ${typeColor}` }}>{tr.note}</div>}
                     </div>
                   </div>
                 );
@@ -3323,11 +3461,13 @@ function ParentSchedule({ childGroup, childCoach, trainings, t }) {
             {myTrainings.map((tr, i) => (
               <div key={tr.id} style={{ display: "flex", alignItems: "center", gap: 14, paddingBottom: 12, borderBottom: i < myTrainings.length - 1 ? `1px solid ${t.border}` : "none" }}>
                 <div style={{ width: 80, textAlign: "center", background: `rgba(6,182,212,.1)`, border: `1px solid rgba(6,182,212,.2)`, borderRadius: 8, padding: "6px" }}>
-                  <div style={{ fontSize: 10, fontWeight: 800, color: "#06B6D4" }}>{tr.days.join(" · ")}</div>
+                  <div style={{ fontSize: 10, fontWeight: 800, color: "#06B6D4" }}>
+                    {tr.isRecurring ? tr.days.join(" · ") : (tr.date ? new Date(tr.date).toLocaleDateString("ar-EG", { day: 'numeric', month: 'short' }) : "مرة واحدة")}
+                  </div>
                 </div>
                 <div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{tr.time} ({tr.duration} دق)</div>
-                  <div style={{ fontSize: 11, color: t.textDim }}>{tr.field} · {tr.trainingFocus}</div>
+                  <div style={{ fontSize: 11, color: t.textDim }}>{tr.field} · {tr.trainingFocus || "تطوير مهارات"}</div>
                 </div>
               </div>
             ))}

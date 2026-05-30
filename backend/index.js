@@ -400,6 +400,10 @@ app.post('/api/trainings', async (req, res) => {
         days: t.days || [], 
         time: t.time || "4:00 م", duration: t.duration ? +t.duration : 90, field: t.field || "ملعب A", 
         title: t.title, trainingFocus: t.trainingFocus, note: t.note,
+        date: t.date ? new Date(t.date) : null,
+        isRecurring: t.isRecurring !== undefined ? !!t.isRecurring : true,
+        type: t.type || "training",
+        isFriendly: t.isFriendly !== undefined ? !!t.isFriendly : false,
         group: { connect: { id: resolvedGroupId } },
         coach: { connect: { id: resolvedCoachId } }
       },
@@ -408,6 +412,10 @@ app.post('/api/trainings', async (req, res) => {
         days: t.days || [], 
         time: t.time || "4:00 م", duration: t.duration ? +t.duration : 90, field: t.field || "ملعب A", 
         title: t.title, trainingFocus: t.trainingFocus, note: t.note,
+        date: t.date ? new Date(t.date) : null,
+        isRecurring: t.isRecurring !== undefined ? !!t.isRecurring : true,
+        type: t.type || "training",
+        isFriendly: t.isFriendly !== undefined ? !!t.isFriendly : false,
         group: { connect: { id: resolvedGroupId } },
         coach: { connect: { id: resolvedCoachId } }
       }

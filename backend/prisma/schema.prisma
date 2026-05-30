@@ -162,4 +162,7 @@ model Training {
   trainingFocus String?
   note          String?
   date          DateTime?
+  isRecurring   Boolean  @default(true)
+  type          String   @default("training") // "training" or "match"
+  isFriendly    Boolean  @default(false)
 }
