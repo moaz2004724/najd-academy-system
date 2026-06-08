@@ -1223,7 +1223,7 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
     { id: "coaches",      icon: "coaches",      label: "المدربون"     },
     { id: "players",      icon: "players",      label: "اللاعبون"     },
     { id: "payments",     icon: "payments",     label: "المدفوعات"    },
-    { id: "prices",       icon: "prices",       label: "الأسعار"      },
+    { id: "prices",       icon: "prices",       label: "الإعدادات"    },
     { id: "schedule",     icon: "schedule",     label: "التمارين"     },
     { id: "reports",      icon: "chart",        label: "التقارير"     },
     { id: "messages",     icon: "messages",     label: "الرسائل",      badge: messages.filter(m => m.to === "admin" && !m.read).length || undefined },
@@ -2180,31 +2180,99 @@ function AdminPayments({ payments, setPayments, players, coaches, prices, t }) {
 function AdminPrices({ prices, setPrices, t }) {
   const [form, setForm] = useState({ ...prices });
   const [saved, setSaved] = useState(false);
+  const [isResetting, setIsResetting] = useState(false);
+
+  const handleResetDatabase = async () => {
+    const confirm1 = window.confirm("⚠️ تحذير هام جداً:\n\nهل أنت متأكد من رغبتك في حذف كافة بيانات النظام بالكامل؟\nسيتم حذف جميع اللاعبين، الفرق، المدربين، الحضور، والمدفوعات بشكل نهائي.");
+    if (!confirm1) return;
+
+    const confirm2 = window.confirm("⚠️ تأكيد أخير:\n\nلا يمكن التراجع عن هذا الإجراء أبداً. هل تريد المتابعة وتصفير النظام للتشغيل الرسمي؟");
+    if (!confirm2) return;
+
+    setIsResetting(true);
+    try {
+      const res = await fetch(`${API_URL}/api/reset-database`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ secret: "NajdLaunch2026" })
+      });
+      
+      const data = await res.json();
+      if (res.ok && data.success) {
+        alert("✅ تم إعادة تهيئة النظام وتصفير البيانات بنجاح!");
+        // Clear all cached local data keys to prevent dirty sync
+        localStorage.removeItem('najd_players');
+        localStorage.removeItem('najd_coaches');
+        localStorage.removeItem('najd_groups');
+        localStorage.removeItem('najd_parents');
+        localStorage.removeItem('najd_payments');
+        localStorage.removeItem('najd_attendance');
+        localStorage.removeItem('najd_coachesAttendance');
+        localStorage.removeItem('najd_evals');
+        localStorage.removeItem('najd_messages');
+        localStorage.removeItem('najd_trainings');
+        
+        // Reload to fetch clean database state
+        window.location.reload();
+      } else {
+        alert("❌ فشلت عملية إعادة التهيئة: " + (data.message || "خطأ غير معروف"));
+      }
+    } catch (e) {
+      console.error(e);
+      alert("❌ حدث خطأ أثناء الاتصال بالخادم لإعادة التهيئة.");
+    } finally {
+      setIsResetting(false);
+    }
+  };
+
   return (
-    <div style={{ maxWidth: 460 }}>
-      <Card t={t} style={{ padding: 28 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
-          <AnimIcon type="prices" size={18} color="#D8A435"/>
-          <div style={{ fontWeight: 700, fontSize: 14, color: t.text }}>تسعيرة الأكاديمية</div>
-        </div>
-        {Object.entries(PAY_TYPES).map(([k, v]) => (
-          <div key={k} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", borderBottom: `1px solid ${t.border}` }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-              <span style={{ fontSize: 22 }}>{v.icon}</span>
-              <div><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{v.label}</div><div style={{ fontSize: 11, color: t.textDim }}>السعر الحالي: {fmtMoney(prices[k])}</div></div>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <input type="number" value={form[k]} onChange={e => setForm(f => ({ ...f, [k]: +e.target.value }))}
-                style={{ width: 90, background: t.inputBg, border: `1px solid ${t.border2}`, borderRadius: 8, padding: "7px 10px", color: v.color, fontSize: 14, fontWeight: 700, outline: "none", textAlign: "center", fontFamily: "'Cairo',sans-serif" }}/>
-              <span style={{ fontSize: 12, color: t.textDim }}>ر.س</span>
-            </div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 20, alignItems: "flex-start" }}>
+      <div style={{ flex: "1 1 420px", maxWidth: 460 }}>
+        <Card t={t} style={{ padding: 28 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
+            <AnimIcon type="prices" size={18} color="#D8A435"/>
+            <div style={{ fontWeight: 700, fontSize: 14, color: t.text }}>تسعيرة الأكاديمية</div>
           </div>
-        ))}
-        <button onClick={() => { setPrices({ ...form }); setSaved(true); setTimeout(() => setSaved(false), 2200); }}
-          style={{ width: "100%", marginTop: 20, background: saved ? "linear-gradient(135deg,#10B981,#065F46)" : "linear-gradient(135deg,#7C49A8,#5A2D82)", color: "#fff", border: "none", borderRadius: 10, padding: 13, fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "background .3s", fontFamily: "'Cairo',sans-serif" }}>
-          {saved ? "✅ تم الحفظ!" : "💾 حفظ الأسعار"}
-        </button>
-      </Card>
+          {Object.entries(PAY_TYPES).map(([k, v]) => (
+            <div key={k} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", borderBottom: `1px solid ${t.border}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <span style={{ fontSize: 22 }}>{v.icon}</span>
+                <div><div style={{ fontSize: 13, fontWeight: 600, color: t.text }}>{v.label}</div><div style={{ fontSize: 11, color: t.textDim }}>السعر الحالي: {fmtMoney(prices[k])}</div></div>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <input type="number" value={form[k]} onChange={e => setForm(f => ({ ...f, [k]: +e.target.value }))}
+                  style={{ width: 90, background: t.inputBg, border: `1px solid ${t.border2}`, borderRadius: 8, padding: "7px 10px", color: v.color, fontSize: 14, fontWeight: 700, outline: "none", textAlign: "center", fontFamily: "'Cairo',sans-serif" }}/>
+                <span style={{ fontSize: 12, color: t.textDim }}>ر.س</span>
+              </div>
+            </div>
+          ))}
+          <button onClick={() => { setPrices({ ...form }); setSaved(true); setTimeout(() => setSaved(false), 2200); }}
+            style={{ width: "100%", marginTop: 20, background: saved ? "linear-gradient(135deg,#10B981,#065F46)" : "linear-gradient(135deg,#7C49A8,#5A2D82)", color: "#fff", border: "none", borderRadius: 10, padding: 13, fontSize: 14, fontWeight: 700, cursor: "pointer", transition: "background .3s", fontFamily: "'Cairo',sans-serif" }}>
+            {saved ? "✅ تم الحفظ!" : "💾 حفظ الأسعار"}
+          </button>
+        </Card>
+      </div>
+
+      <div style={{ flex: "1 1 420px", maxWidth: 460 }}>
+        <Card t={t} style={{ padding: 28, border: `1px solid rgba(239, 68, 68, 0.15)` }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 20 }}>
+            <span style={{ fontSize: 18 }}>⚠️</span>
+            <div style={{ fontWeight: 700, fontSize: 14, color: "#EF4444" }}>منطقة الخطورة - إدارة البيانات</div>
+          </div>
+          
+          <div style={{ fontSize: 13, color: t.text, fontWeight: 600, marginBottom: 8 }}>إعادة تهيئة النظام وتصفير البيانات</div>
+          <div style={{ fontSize: 11, color: t.textDim, lineHeight: "1.6", marginBottom: 20 }}>
+            هذا الإجراء يقوم بحذف كافة البيانات التجريبية والمدخلة في النظام (اللاعبين، الفرق، المدربين، التحضير، والمدفوعات) لإعداد النظام للتشغيل الرسمي الفعلي.
+            <br />
+            <span style={{ color: "#EF4444", fontWeight: 700 }}>تحذير:</span> لا يمكن استرجاع البيانات بعد حذفها. سيتم الاحتفاظ بحساب الإدارة فقط.
+          </div>
+          
+          <button onClick={handleResetDatabase} disabled={isResetting}
+            style={{ width: "100%", background: isResetting ? "rgba(239, 68, 68, 0.4)" : "linear-gradient(135deg,#EF4444,#B91C1C)", color: "#fff", border: "none", borderRadius: 10, padding: 13, fontSize: 14, fontWeight: 700, cursor: isResetting ? "not-allowed" : "pointer", transition: "all .3s", fontFamily: "'Cairo',sans-serif" }}>
+            {isResetting ? "🔄 جاري إعادة تهيئة النظام..." : "🗑️ إعادة تهيئة النظام وتصفير البيانات"}
+          </button>
+        </Card>
+      </div>
     </div>
   );
 }
