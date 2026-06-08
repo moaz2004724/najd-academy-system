@@ -1803,7 +1803,7 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t 
   const [sel, setSel]   = useState(null);
   const [modal, setModal] = useState(false);
   const [search, setSearch] = useState("");
-  const emptyP = { name: "", age: "", groupId: "g1", phone: "", position: "مهاجم", status: "نشط", score: 80, speed: 75, stamina: 75, technique: 75, teamwork: 75, goals: 0, assists: 0, attendancePct: 90, weight: "", height: "", parentId: "par1", email: "", password: "" };
+  const emptyP = { name: "", age: "", groupId: groups[0]?.id || "", phone: "", position: "مهاجم", status: "نشط", score: 80, speed: 75, stamina: 75, technique: 75, teamwork: 75, goals: 0, assists: 0, attendancePct: 90, weight: "", height: "", parentId: "__new__", email: "", password: "" };
   const [form, setForm] = useState(emptyP);
   const filtered = players.filter(p => p.name.includes(search) || (groups.find(g => g.id === p.groupId)?.name || "").includes(search));
 
@@ -1916,7 +1916,14 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t 
           <AnimIcon type="search" size={15} color={t.textDim}/>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="بحث..." style={{ background: "none", border: "none", outline: "none", color: t.text, fontSize: 13, width: "100%", fontFamily: "'Cairo',sans-serif" }}/>
         </div>
-        <Btn onClick={() => { setForm(emptyP); setModal("add"); }}>
+        <Btn onClick={() => { 
+          if (groups.length === 0) {
+            alert("الرجاء إضافة فريق (مجموعة) أولاً قبل إضافة اللاعبين.");
+            return;
+          }
+          setForm({ ...emptyP, groupId: groups[0].id }); 
+          setModal("add"); 
+        }}>
           <AnimIcon type="plus" size={14} color="#fff" /> إضافة لاعب
         </Btn>
       </div>
@@ -2040,7 +2047,7 @@ function AdminPayments({ payments, setPayments, players, coaches, prices, t }) {
   
   const MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"].map(m => `${m} 2026`);
   
-  const empty = { playerId: "p1", coachId: "none", types: ["subscription"], month: CUR_MONTH, note: "", date: new Date().toISOString().split("T")[0] };
+  const empty = { playerId: players[0]?.id || "", coachId: coaches[0]?.id || "none", types: ["subscription"], month: CUR_MONTH, note: "", date: new Date().toISOString().split("T")[0] };
   const [form, setForm] = useState(empty);
   const filtered = payments.filter(p => (fc === "الكل" || p.coachId === fc) && (ft === "الكل" || p.type === ft));
 
@@ -2091,7 +2098,14 @@ function AdminPayments({ payments, setPayments, players, coaches, prices, t }) {
             </button>
           ))}
         </div>
-        <Btn onClick={() => { setForm(empty); setModal(true); }}>
+        <Btn onClick={() => { 
+          if (players.length === 0) {
+            alert("الرجاء إضافة لاعب واحد على الأقل أولاً لتتمكن من تسجيل المدفوعات.");
+            return;
+          }
+          setForm({ ...empty, playerId: players[0].id, coachId: coaches[0]?.id || "none" }); 
+          setModal(true); 
+        }}>
           <AnimIcon type="plus" size={14} color="#fff"/> تسجيل دفعة
         </Btn>
       </div>
