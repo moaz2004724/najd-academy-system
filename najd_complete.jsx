@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import * as XLSX from "xlsx";
 import logoImg from "./logo.png";
 
 /* ═══ SETTINGS ════════════════════════════════════════ */
@@ -651,65 +652,85 @@ function LoginPage({ onLogin, players = [], coaches = [], t }) {
     }, 700);
   };
 
-  const demos = [
-    { label: "الإدارة",  email: "admin@najd.sa",      pass: "Najd@2026",  color: "#7C49A8" },
-    { label: "مدرب",     email: "khaled@najd.sa",     pass: "Coach@5678", color: "#06B6D4" },
-    { label: "ولي أمر",  email: "aalghamdi@mail.com", pass: "Parent@111", color: "#10B981" },
-  ];
-
   return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#08071A", position: "relative", overflow: "hidden", padding: 20 }}>
-      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 55% at 50% 20%,rgba(124,73,168,.2) 0%,transparent 70%)" }} />
-      <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(124,73,168,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(124,73,168,.04) 1px,transparent 1px)", backgroundSize: "55px 55px" }} />
-      <div style={{ position: "absolute", top: "18%", right: "8%", width: 260, height: 260, borderRadius: "50%", background: "radial-gradient(circle,rgba(216,164,53,.07),transparent 70%)", animation: "float 6s ease-in-out infinite" }} />
-      <div style={{ position: "absolute", bottom: "15%", left: "6%", width: 180, height: 180, borderRadius: "50%", background: "radial-gradient(circle,rgba(124,73,168,.1),transparent 70%)", animation: "float 4s ease-in-out infinite 1.5s" }} />
+      {/* Background effects */}
+      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 55% at 50% 20%,rgba(124,73,168,.18) 0%,transparent 70%)" }} />
+      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 60% 50% at 50% 85%,rgba(216,164,53,.08) 0%,transparent 60%)" }} />
+      <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(124,73,168,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(124,73,168,.03) 1px,transparent 1px)", backgroundSize: "60px 60px" }} />
+      <div style={{ position: "absolute", top: "12%", right: "10%", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle,rgba(216,164,53,.06),transparent 70%)", animation: "float 8s ease-in-out infinite" }} />
+      <div style={{ position: "absolute", bottom: "10%", left: "8%", width: 220, height: 220, borderRadius: "50%", background: "radial-gradient(circle,rgba(124,73,168,.08),transparent 70%)", animation: "float 6s ease-in-out infinite 2s" }} />
+      <div style={{ position: "absolute", top: "50%", left: "50%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle,rgba(124,73,168,.04),transparent 60%)", transform: "translate(-50%,-50%)", animation: "pulse 4s ease-in-out infinite" }} />
 
-      <div style={{ position: "relative", zIndex: 1, width: "min(430px,100%)" }}>
-        <div style={{ textAlign: "center", marginBottom: 32, animation: "fadeUp .6s ease both" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 110, height: 110, borderRadius: 28, background: "linear-gradient(135deg,rgba(124,73,168,.14),rgba(124,73,168,.04))", border: "1px solid rgba(124,73,168,.3)", marginBottom: 16, boxShadow: "0 0 40px rgba(124,73,168,.18)" }}>
-            <NajdLogo size={85} />
+      <div style={{ position: "relative", zIndex: 1, width: "min(440px,100%)" }}>
+        {/* Logo & Title */}
+        <div style={{ textAlign: "center", marginBottom: 36, animation: "fadeUp .6s ease both" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 120, height: 120, borderRadius: 32, background: "linear-gradient(135deg,rgba(124,73,168,.14),rgba(216,164,53,.06))", border: "1px solid rgba(124,73,168,.25)", marginBottom: 18, boxShadow: "0 0 50px rgba(124,73,168,.15), 0 0 100px rgba(216,164,53,.05)", position: "relative" }}>
+            <NajdLogo size={90} />
+            <div style={{ position: "absolute", inset: -1, borderRadius: 32, background: "conic-gradient(from 0deg, transparent 0%, rgba(124,73,168,.15) 25%, transparent 50%, rgba(216,164,53,.1) 75%, transparent 100%)", animation: "spin 8s linear infinite", pointerEvents: "none" }} />
           </div>
-          <h1 style={{ fontSize: 32, fontWeight: 900, color: "#fff", marginBottom: 6, letterSpacing: "-.02em" }}>
+          <h1 style={{ fontSize: 34, fontWeight: 900, color: "#fff", marginBottom: 8, letterSpacing: "-.02em" }}>
             نادي <span style={{ color: "#D8A435" }}>نجد</span> الرياض
           </h1>
-          <p style={{ fontSize: 14, color: "#5A4E8A", fontWeight: 600 }}>أكاديمية كرة القدم — بوابة الدخول الموحدة</p>
+          <p style={{ fontSize: 13, color: "#6B5CA5", fontWeight: 600, letterSpacing: ".02em" }}>أكاديمية كرة القدم — نظام الإدارة المتكامل</p>
         </div>
 
-        <div style={{ background: "rgba(18,17,31,.88)", border: "1px solid rgba(124,73,168,.22)", borderRadius: 24, padding: "32px 28px", backdropFilter: "blur(20px)", animation: "fadeUp .6s .15s ease both", opacity: 0 }}>
-          <div style={{ marginBottom: 18 }}>
-            <label style={{ display: "block", fontSize: 12, color: "#8B7FBB", fontWeight: 600, marginBottom: 8 }}>البريد الإلكتروني</label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="example@najd.sa"
-              onFocus={e => e.target.style.borderColor = "#7C49A8"} onBlur={e => e.target.style.borderColor = "#2A2050"}
-              style={{ width: "100%", background: "rgba(12,11,24,.8)", border: "1px solid #2A2050", borderRadius: 11, padding: "12px 15px", color: "#E8E3FF", fontSize: 14, outline: "none", fontFamily: "'Cairo',sans-serif", transition: "border .2s" }} />
+        {/* Login Card */}
+        <div style={{ background: "rgba(18,17,31,.92)", border: "1px solid rgba(124,73,168,.18)", borderRadius: 28, padding: "36px 30px 30px", backdropFilter: "blur(24px)", animation: "fadeUp .6s .15s ease both", opacity: 0, boxShadow: "0 20px 60px rgba(0,0,0,.4), 0 0 0 1px rgba(124,73,168,.08)" }}>
+          <div style={{ textAlign: "center", marginBottom: 24 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#E8E3FF", marginBottom: 4 }}>تسجيل الدخول</div>
+            <div style={{ fontSize: 11, color: "#5A4E8A" }}>أدخل بيانات حسابك للوصول إلى النظام</div>
           </div>
-          <div style={{ marginBottom: 20, position: "relative" }}>
-            <label style={{ display: "block", fontSize: 12, color: "#8B7FBB", fontWeight: 600, marginBottom: 8 }}>كلمة المرور</label>
-            <input type={showP ? "text" : "password"} value={pass} onChange={e => setPass(e.target.value)} placeholder="••••••••"
+
+          <div style={{ marginBottom: 18 }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#8B7FBB", fontWeight: 600, marginBottom: 8 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="#8B7FBB" strokeWidth="1.5"/><polyline points="22,6 12,13 2,6" stroke="#8B7FBB" strokeWidth="1.5"/></svg>
+              البريد الإلكتروني
+            </label>
+            <input id="login-email" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="أدخل بريدك الإلكتروني"
+              onFocus={e => { e.target.style.borderColor = "#7C49A8"; e.target.style.boxShadow = "0 0 0 3px rgba(124,73,168,.12)"; }} 
+              onBlur={e => { e.target.style.borderColor = "#2A2050"; e.target.style.boxShadow = "none"; }}
+              style={{ width: "100%", background: "rgba(12,11,24,.7)", border: "1.5px solid #2A2050", borderRadius: 13, padding: "13px 16px", color: "#E8E3FF", fontSize: 14, outline: "none", fontFamily: "'Cairo',sans-serif", transition: "all .25s" }} />
+          </div>
+          <div style={{ marginBottom: 22, position: "relative" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "#8B7FBB", fontWeight: 600, marginBottom: 8 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="5" y="11" width="14" height="10" rx="2" stroke="#8B7FBB" strokeWidth="1.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="#8B7FBB" strokeWidth="1.5"/></svg>
+              كلمة المرور
+            </label>
+            <input id="login-password" type={showP ? "text" : "password"} value={pass} onChange={e => setPass(e.target.value)} placeholder="أدخل كلمة المرور"
               onKeyDown={e => e.key === "Enter" && handle()}
-              onFocus={e => e.target.style.borderColor = "#7C49A8"} onBlur={e => e.target.style.borderColor = "#2A2050"}
-              style={{ width: "100%", background: "rgba(12,11,24,.8)", border: "1px solid #2A2050", borderRadius: 11, padding: "12px 42px 12px 15px", color: "#E8E3FF", fontSize: 14, outline: "none", fontFamily: "'Cairo',sans-serif", transition: "border .2s" }} />
-            <button onClick={() => setShowP(s => !s)} style={{ position: "absolute", left: 13, top: 33, background: "none", border: "none", color: "#5A4E8A", cursor: "pointer", fontSize: 16 }}>
+              onFocus={e => { e.target.style.borderColor = "#7C49A8"; e.target.style.boxShadow = "0 0 0 3px rgba(124,73,168,.12)"; }} 
+              onBlur={e => { e.target.style.borderColor = "#2A2050"; e.target.style.boxShadow = "none"; }}
+              style={{ width: "100%", background: "rgba(12,11,24,.7)", border: "1.5px solid #2A2050", borderRadius: 13, padding: "13px 44px 13px 16px", color: "#E8E3FF", fontSize: 14, outline: "none", fontFamily: "'Cairo',sans-serif", transition: "all .25s" }} />
+            <button onClick={() => setShowP(s => !s)} style={{ position: "absolute", left: 14, top: 36, background: "none", border: "none", color: "#5A4E8A", cursor: "pointer", fontSize: 16, transition: "color .2s" }}
+              onMouseEnter={e => e.target.style.color = "#8B7FBB"} onMouseLeave={e => e.target.style.color = "#5A4E8A"}>
               {showP ? "🙈" : "👁️"}
             </button>
           </div>
-          {error && <div style={{ background: "rgba(239,68,68,.1)", border: "1px solid rgba(239,68,68,.3)", borderRadius: 10, padding: "10px 14px", fontSize: 13, color: "#FCA5A5", marginBottom: 16, textAlign: "center" }}>⚠️ {error}</div>}
-          <button onClick={handle} disabled={loading || !email || !pass}
-            style={{ width: "100%", background: loading ? "#2A2050" : "linear-gradient(135deg,#7C49A8,#5A2D82)", color: "#fff", border: "none", borderRadius: 12, padding: 14, fontSize: 15, fontWeight: 800, cursor: loading || !email || !pass ? "not-allowed" : "pointer", transition: "all .3s", boxShadow: "0 6px 20px rgba(124,73,168,.32)", marginBottom: 6, opacity: loading || !email || !pass ? .65 : 1, fontFamily: "'Cairo',sans-serif" }}>
-            {loading ? "جارٍ التحقق..." : "دخول ←"}
+          {error && <div style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.25)", borderRadius: 12, padding: "11px 16px", fontSize: 13, color: "#FCA5A5", marginBottom: 18, textAlign: "center", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+            <span style={{ fontSize: 16 }}>⚠️</span> {error}
+          </div>}
+          <button id="login-submit" onClick={handle} disabled={loading || !email || !pass}
+            onMouseEnter={e => { if (!e.target.disabled) e.target.style.transform = "translateY(-1px)"; }}
+            onMouseLeave={e => { e.target.style.transform = "none"; }}
+            style={{ width: "100%", background: loading ? "#2A2050" : "linear-gradient(135deg,#7C49A8,#5A2D82)", color: "#fff", border: "none", borderRadius: 14, padding: 15, fontSize: 15, fontWeight: 800, cursor: loading || !email || !pass ? "not-allowed" : "pointer", transition: "all .3s", boxShadow: loading || !email || !pass ? "none" : "0 8px 24px rgba(124,73,168,.35)", opacity: loading || !email || !pass ? .6 : 1, fontFamily: "'Cairo',sans-serif", letterSpacing: ".01em" }}>
+            {loading ? (
+              <span style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+                <span style={{ width: 16, height: 16, border: "2px solid rgba(255,255,255,.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin .6s linear infinite", display: "inline-block" }} />
+                جارٍ التحقق...
+              </span>
+            ) : "تسجيل الدخول"}
           </button>
-          <div style={{ marginTop: 20, padding: "14px", background: "rgba(124,73,168,.06)", borderRadius: 12, border: "1px solid rgba(124,73,168,.1)" }}>
-            <div style={{ fontSize: 11, color: "#5A4E8A", fontWeight: 600, marginBottom: 9, textAlign: "center" }}>تجربة سريعة</div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              {demos.map(d => (
-                <button key={d.email} onClick={() => { setEmail(d.email); setPass(d.pass); }}
-                  style={{ background: `${d.color}0E`, border: `1px solid ${d.color}22`, color: d.color, borderRadius: 9, padding: "7px 13px", fontSize: 12, fontWeight: 600, cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontFamily: "'Cairo',sans-serif" }}>
-                  <span>{d.label}</span>
-                  <span style={{ color: "#4A3D7A", fontSize: 10 }}>{d.email}</span>
-                </button>
-              ))}
-            </div>
+        </div>
+
+        {/* Security badge */}
+        <div style={{ textAlign: "center", marginTop: 20, animation: "fadeUp .6s .3s ease both", opacity: 0 }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 10, color: "#3A3060", background: "rgba(124,73,168,.05)", padding: "6px 14px", borderRadius: 20, border: "1px solid rgba(124,73,168,.08)" }}>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="#5A4E8A" strokeWidth="1.5"/></svg>
+            اتصال مشفّر وآمن
           </div>
         </div>
+
         <Footer t={t} />
       </div>
     </div>
@@ -1181,6 +1202,7 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
     { id: "payments",     icon: "payments",     label: "المدفوعات"    },
     { id: "prices",       icon: "prices",       label: "الأسعار"      },
     { id: "schedule",     icon: "schedule",     label: "التمارين"     },
+    { id: "reports",      icon: "chart",        label: "التقارير"     },
     { id: "messages",     icon: "messages",     label: "الرسائل",      badge: messages.filter(m => m.to === "admin" && !m.read).length || undefined },
   ];
   return (
@@ -1193,6 +1215,7 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
       {tab === "payments"  && <AdminPayments payments={payments} setPayments={setPayments} players={players} coaches={coaches} prices={prices} t={t} />}
       {tab === "prices"    && <AdminPrices prices={prices} setPrices={setPrices} t={t} />}
       {tab === "schedule"  && <AdminTrainings trainings={trainings} setTrainings={setTrainings} groups={groups} coaches={coaches} t={t} />}
+      {tab === "reports"   && <AdminReports players={players} coaches={coaches} groups={groups} payments={payments} attendance={attendance} evals={evals} t={t} />}
       {tab === "messages"  && <Messaging messages={messages} setMessages={setMessages} meId="admin" meName="الإدارة" coaches={coaches} parents={parents} t={t} />}
     </Shell>
   );
@@ -2219,6 +2242,330 @@ function AdminTrainings({ trainings, setTrainings, groups, coaches, t }) {
           </div>
         </Modal>
       )}
+    </div>
+  );
+}
+
+/* ══════════════════════════════════════════════════════════
+   ADMIN REPORTS — Excel Export (Monthly & Annual)
+══════════════════════════════════════════════════════════ */
+function AdminReports({ players, coaches, groups, payments, attendance, evals, t }) {
+  const [reportType, setReportType] = useState("monthly");
+  const [selMonth, setSelMonth] = useState(CUR_MONTH);
+  const [selYear, setSelYear] = useState(new Date().getFullYear().toString());
+  const [exporting, setExporting] = useState(false);
+  const [lastExport, setLastExport] = useState(null);
+
+  const MONTHS_LIST = AR_MONTHS.map(m => `${m} ${selYear}`);
+  const YEARS_LIST = ["2024", "2025", "2026", "2027"];
+
+  const filterPayments = () => {
+    if (reportType === "monthly") {
+      return payments.filter(p => p.month === selMonth);
+    } else {
+      return payments.filter(p => p.month?.includes(selYear));
+    }
+  };
+
+  const filterAttendance = () => {
+    if (reportType === "monthly") {
+      const [mName, y] = selMonth.split(" ");
+      const mIdx = AR_MONTHS.indexOf(mName);
+      return attendance.filter(a => {
+        const d = new Date(a.date);
+        return d.getMonth() === mIdx && d.getFullYear() === parseInt(y);
+      });
+    } else {
+      return attendance.filter(a => {
+        const d = new Date(a.date);
+        return d.getFullYear() === parseInt(selYear);
+      });
+    }
+  };
+
+  const exportExcel = () => {
+    setExporting(true);
+    setTimeout(() => {
+      try {
+        const wb = XLSX.utils.book_new();
+        const periodLabel = reportType === "monthly" ? selMonth : `سنة ${selYear}`;
+
+        // Sheet 1: Players
+        const playersData = players.map(p => {
+          const g = groups.find(x => x.id === p.groupId);
+          const coach = coaches.find(c => c.groupId === p.groupId);
+          const playerPayments = filterPayments().filter(pay => pay.playerId === p.id);
+          const totalPaid = playerPayments.reduce((sum, pay) => sum + pay.amount, 0);
+          const hasSub = playerPayments.some(pay => pay.type === "subscription");
+          return {
+            "الاسم": p.name,
+            "العمر": p.age,
+            "المركز": p.position || "—",
+            "المجموعة": g?.name || "—",
+            "المدرب": coach?.name || "—",
+            "الحالة": p.status,
+            "التقييم": p.score || 0,
+            "نسبة الحضور": `${p.attendancePct || 0}%`,
+            "الأهداف": p.goals || 0,
+            "التمريرات الحاسمة": p.assists || 0,
+            "إجمالي المدفوعات": totalPaid,
+            "حالة الاشتراك": hasSub ? "مدفوع ✅" : "غير مدفوع ❌",
+            "تاريخ الانضمام": p.joinDate || "—",
+            "الهاتف": p.phone || "—",
+          };
+        });
+        const wsPlayers = XLSX.utils.json_to_sheet(playersData);
+        wsPlayers["!cols"] = Object.keys(playersData[0] || {}).map(() => ({ wch: 18 }));
+        XLSX.utils.book_append_sheet(wb, wsPlayers, "اللاعبون");
+
+        // Sheet 2: Payments
+        const fPay = filterPayments();
+        const paymentsData = fPay.map(p => ({
+          "اللاعب": p.playerName || "—",
+          "النوع": PAY_TYPES[p.type]?.label || p.type,
+          "المبلغ": p.amount,
+          "الشهر": p.month,
+          "التاريخ": p.date || "—",
+          "المستلم": p.coachName || "الإدارة",
+          "ملاحظة": p.note || "—",
+        }));
+        if (paymentsData.length > 0) {
+          const totalRow = { "اللاعب": "الإجمالي", "النوع": "", "المبلغ": fPay.reduce((s, p) => s + p.amount, 0), "الشهر": "", "التاريخ": "", "المستلم": "", "ملاحظة": "" };
+          paymentsData.push(totalRow);
+        }
+        const wsPayments = XLSX.utils.json_to_sheet(paymentsData);
+        wsPayments["!cols"] = Object.keys(paymentsData[0] || {}).map(() => ({ wch: 18 }));
+        XLSX.utils.book_append_sheet(wb, wsPayments, "المدفوعات");
+
+        // Sheet 3: Attendance Summary
+        const fAtt = filterAttendance();
+        const attSummary = players.map(p => {
+          let present = 0, absent = 0, excused = 0;
+          fAtt.forEach(a => {
+            if (a.records?.[p.id] === "حاضر") present++;
+            if (a.records?.[p.id] === "غائب") absent++;
+            if (a.records?.[p.id] === "بعذر") excused++;
+          });
+          const total = present + absent + excused;
+          return {
+            "اللاعب": p.name,
+            "المجموعة": groups.find(g => g.id === p.groupId)?.name || "—",
+            "حاضر": present,
+            "غائب": absent,
+            "بعذر": excused,
+            "إجمالي الأيام": total,
+            "نسبة الحضور": total > 0 ? `${Math.round((present / total) * 100)}%` : "—",
+          };
+        });
+        const wsAtt = XLSX.utils.json_to_sheet(attSummary);
+        wsAtt["!cols"] = Object.keys(attSummary[0] || {}).map(() => ({ wch: 16 }));
+        XLSX.utils.book_append_sheet(wb, wsAtt, "الحضور");
+
+        // Sheet 4: Coaches Summary
+        const coachesData = coaches.map(c => {
+          const g = groups.find(x => x.id === c.groupId);
+          const cPlayers = players.filter(p => p.groupId === c.groupId);
+          const cPayments = filterPayments().filter(p => p.coachId === c.id);
+          const totalCollected = cPayments.reduce((s, p) => s + p.amount, 0);
+          return {
+            "المدرب": c.name,
+            "التخصص": c.specialty || "—",
+            "الشهادة": c.cert || "—",
+            "المجموعة": g?.name || "—",
+            "عدد اللاعبين": cPlayers.length,
+            "المدفوعات المستلمة": cPayments.length,
+            "إجمالي المبالغ المحصلة": totalCollected,
+            "الراتب": c.salary || 0,
+          };
+        });
+        const wsCoaches = XLSX.utils.json_to_sheet(coachesData);
+        wsCoaches["!cols"] = Object.keys(coachesData[0] || {}).map(() => ({ wch: 20 }));
+        XLSX.utils.book_append_sheet(wb, wsCoaches, "المدربون");
+
+        // Sheet 5: Revenue by Type
+        const revenueByType = Object.entries(PAY_TYPES).map(([k, v]) => {
+          const typePayments = filterPayments().filter(p => p.type === k);
+          return {
+            "النوع": v.label,
+            "عدد العمليات": typePayments.length,
+            "إجمالي المبلغ": typePayments.reduce((s, p) => s + p.amount, 0),
+          };
+        });
+        const totalRevenue = filterPayments().reduce((s, p) => s + p.amount, 0);
+        revenueByType.push({ "النوع": "الإجمالي الكلي", "عدد العمليات": filterPayments().length, "إجمالي المبلغ": totalRevenue });
+        const wsRevenue = XLSX.utils.json_to_sheet(revenueByType);
+        wsRevenue["!cols"] = [{ wch: 20 }, { wch: 14 }, { wch: 18 }];
+        XLSX.utils.book_append_sheet(wb, wsRevenue, "الإيرادات حسب النوع");
+
+        const fileName = `تقرير_نادي_نجد_${periodLabel.replace(/ /g, "_")}.xlsx`;
+        XLSX.writeFile(wb, fileName);
+        setLastExport({ time: new Date().toLocaleTimeString("ar-SA"), period: periodLabel, fileName });
+      } catch (e) {
+        console.error("Export error:", e);
+        alert("حدث خطأ أثناء التصدير: " + e.message);
+      }
+      setExporting(false);
+    }, 500);
+  };
+
+  const fPay = filterPayments();
+  const totalRevenue = fPay.reduce((s, p) => s + p.amount, 0);
+  const subCount = fPay.filter(p => p.type === "subscription").length;
+  const fAtt = filterAttendance();
+
+  return (
+    <div className="s1">
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          <AnimIcon type="chart" size={22} color="#D8A435"/>
+          <div style={{ fontWeight: 900, fontSize: 18, color: t.text }}>مركز التقارير والبيانات</div>
+        </div>
+        <div style={{ fontSize: 12, color: t.textDim }}>تصدير بيانات شاملة بصيغة Excel — تقارير شهرية وسنوية</div>
+      </div>
+
+      {/* Period Selection */}
+      <Card t={t} style={{ padding: 24, marginBottom: 20 }}>
+        <div style={{ display: "flex", gap: 12, marginBottom: 20 }}>
+          <button onClick={() => setReportType("monthly")}
+            style={{ flex: 1, padding: "14px", borderRadius: 14, border: "none", background: reportType === "monthly" ? "linear-gradient(135deg,#7C49A8,#5A2D82)" : t.bg, color: reportType === "monthly" ? "#fff" : t.textDim, fontWeight: 800, cursor: "pointer", transition: "all .3s", fontSize: 14, fontFamily: "'Cairo',sans-serif", boxShadow: reportType === "monthly" ? "0 6px 20px rgba(124,73,168,.3)" : "none" }}>
+            📅 تقرير شهري
+          </button>
+          <button onClick={() => setReportType("annual")}
+            style={{ flex: 1, padding: "14px", borderRadius: 14, border: "none", background: reportType === "annual" ? "linear-gradient(135deg,#D8A435,#A87820)" : t.bg, color: reportType === "annual" ? "#fff" : t.textDim, fontWeight: 800, cursor: "pointer", transition: "all .3s", fontSize: 14, fontFamily: "'Cairo',sans-serif", boxShadow: reportType === "annual" ? "0 6px 20px rgba(216,164,53,.3)" : "none" }}>
+            📊 تقرير سنوي
+          </button>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: reportType === "monthly" ? "1fr 1fr" : "1fr", gap: 14 }}>
+          {reportType === "monthly" && (
+            <Input label="الشهر" value={selMonth} onChange={setSelMonth} options={MONTHS_LIST} t={t}/>
+          )}
+          <Input label="السنة" value={selYear} onChange={v => { setSelYear(v); if (reportType === "monthly") { const parts = selMonth.split(" "); setSelMonth(`${parts[0]} ${v}`); } }} options={YEARS_LIST} t={t}/>
+        </div>
+      </Card>
+
+      {/* Summary Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14, marginBottom: 20 }} className="s2">
+        <StatCard label="إجمالي الإيرادات" counter={totalRevenue} icon="💰" color="#10B981" value={fmtMoney(totalRevenue)} t={t}/>
+        <StatCard label="عدد المدفوعات" counter={fPay.length} icon="💳" color="#7C49A8" t={t}/>
+        <StatCard label="الاشتراكات المدفوعة" counter={subCount} icon="📋" color="#06B6D4" t={t}/>
+        <StatCard label="سجلات الحضور" counter={fAtt.length} icon="✅" color="#D8A435" t={t}/>
+      </div>
+
+      {/* Report Contents */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 20 }} className="s3">
+        {/* Revenue by Type */}
+        <Card t={t} style={{ padding: 22 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: t.text, marginBottom: 14 }}>💳 الإيرادات حسب النوع</div>
+          {Object.entries(PAY_TYPES).map(([k, v]) => {
+            const typePayments = fPay.filter(p => p.type === k);
+            const typeTotal = typePayments.reduce((s, p) => s + p.amount, 0);
+            return (
+              <div key={k} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${t.border}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                  <span style={{ fontSize: 17 }}>{v.icon}</span>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{v.label}</div>
+                    <div style={{ fontSize: 10, color: t.textDim }}>{typePayments.length} عملية</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: 13, fontWeight: 800, color: v.color }}>{fmtMoney(typeTotal)}</span>
+              </div>
+            );
+          })}
+          <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 0", marginTop: 4 }}>
+            <span style={{ fontWeight: 700, color: t.text }}>الإجمالي</span>
+            <span style={{ fontWeight: 900, fontSize: 16, color: "#10B981" }}>{fmtMoney(totalRevenue)}</span>
+          </div>
+        </Card>
+
+        {/* Groups Summary */}
+        <Card t={t} style={{ padding: 22 }}>
+          <div style={{ fontWeight: 700, fontSize: 13, color: t.text, marginBottom: 14 }}>⚽ ملخص المجموعات</div>
+          {groups.map(g => {
+            const gPlayers = players.filter(p => p.groupId === g.id);
+            const coach = coaches.find(c => c.groupId === g.id);
+            const gPayments = fPay.filter(p => gPlayers.some(pl => pl.id === p.playerId));
+            const gTotal = gPayments.reduce((s, p) => s + p.amount, 0);
+            return (
+              <div key={g.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${t.border}` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
+                  <div style={{ width: 32, height: 32, borderRadius: 10, background: `${g.color}18`, display: "grid", placeItems: "center", fontSize: 13, fontWeight: 900, color: g.color }}>{gPlayers.length}</div>
+                  <div>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: g.color }}>{g.name}</div>
+                    <div style={{ fontSize: 10, color: t.textDim }}>{coach?.name || "بدون مدرب"}</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: 12, fontWeight: 700, color: "#10B981" }}>{fmtMoney(gTotal)}</span>
+              </div>
+            );
+          })}
+        </Card>
+      </div>
+
+      {/* Export Section */}
+      <Card t={t} style={{ padding: 28, background: t.name === "dark" ? "linear-gradient(135deg, #12111F, #1A1530)" : "linear-gradient(135deg, #FEFEFF, #F8F5FF)", borderColor: "rgba(124,73,168,.2)" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 16 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <span style={{ fontSize: 24 }}>📥</span>
+              <div style={{ fontWeight: 800, fontSize: 16, color: t.text }}>تصدير التقرير كملف Excel</div>
+            </div>
+            <div style={{ fontSize: 12, color: t.textDim }}>
+              يتضمن: اللاعبون، المدفوعات، الحضور، المدربون، الإيرادات حسب النوع
+            </div>
+            <div style={{ fontSize: 11, color: t.textFaint, marginTop: 4 }}>
+              الفترة: <span style={{ color: "#D8A435", fontWeight: 700 }}>{reportType === "monthly" ? selMonth : `سنة ${selYear}`}</span>
+              {" — "} 5 صفحات تفصيلية
+            </div>
+          </div>
+          <button onClick={exportExcel} disabled={exporting}
+            onMouseEnter={e => { if (!e.target.disabled) { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 12px 30px rgba(16,185,129,.3)"; } }}
+            onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(16,185,129,.2)"; }}
+            style={{ background: exporting ? t.border : "linear-gradient(135deg,#10B981,#065F46)", color: "#fff", border: "none", borderRadius: 16, padding: "16px 36px", fontSize: 15, fontWeight: 800, cursor: exporting ? "wait" : "pointer", transition: "all .3s", boxShadow: "0 6px 20px rgba(16,185,129,.2)", display: "flex", alignItems: "center", gap: 10, fontFamily: "'Cairo',sans-serif", minWidth: 200, justifyContent: "center" }}>
+            {exporting ? (
+              <>
+                <span style={{ width: 18, height: 18, border: "2px solid rgba(255,255,255,.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin .6s linear infinite", display: "inline-block" }} />
+                جارٍ التصدير...
+              </>
+            ) : (
+              <>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke="#fff" strokeWidth="2" strokeLinecap="round"/><polyline points="7 10 12 15 17 10" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/><line x1="12" y1="15" x2="12" y2="3" stroke="#fff" strokeWidth="2" strokeLinecap="round"/></svg>
+                تحميل ملف Excel
+              </>
+            )}
+          </button>
+        </div>
+
+        {lastExport && (
+          <div style={{ marginTop: 16, padding: "12px 16px", background: "rgba(16,185,129,.08)", borderRadius: 12, border: "1px solid rgba(16,185,129,.2)", display: "flex", alignItems: "center", gap: 10 }}>
+            <span style={{ fontSize: 18 }}>✅</span>
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#10B981" }}>تم التصدير بنجاح!</div>
+              <div style={{ fontSize: 10, color: t.textDim }}>{lastExport.fileName} — {lastExport.time}</div>
+            </div>
+          </div>
+        )}
+      </Card>
+
+      {/* Info Cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14, marginTop: 20 }} className="s4">
+        <Card t={t} style={{ padding: 18, textAlign: "center" }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>📋</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: t.text, marginBottom: 4 }}>صفحة اللاعبين</div>
+          <div style={{ fontSize: 10, color: t.textDim, lineHeight: 1.6 }}>بيانات كاملة: الاسم، العمر، المركز، التقييم، الحضور، المدفوعات</div>
+        </Card>
+        <Card t={t} style={{ padding: 18, textAlign: "center" }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>💰</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: t.text, marginBottom: 4 }}>صفحة المدفوعات</div>
+          <div style={{ fontSize: 10, color: t.textDim, lineHeight: 1.6 }}>سجل تفصيلي لكل دفعة مع النوع والمبلغ والمستلم</div>
+        </Card>
+        <Card t={t} style={{ padding: 18, textAlign: "center" }}>
+          <div style={{ fontSize: 28, marginBottom: 8 }}>📊</div>
+          <div style={{ fontSize: 12, fontWeight: 700, color: t.text, marginBottom: 4 }}>صفحة الحضور والمدربين</div>
+          <div style={{ fontSize: 10, color: t.textDim, lineHeight: 1.6 }}>ملخص حضور كل لاعب + أداء المدربين والمبالغ المحصّلة</div>
+        </Card>
+      </div>
     </div>
   );
 }
