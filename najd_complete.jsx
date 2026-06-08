@@ -1230,7 +1230,7 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
   ];
   return (
     <Shell title="لوحة الإدارة" subtitle="نادي نجد الرياض" color="#7C49A8" icon="dashboard" tabs={tabs} activeTab={tab} setActiveTab={setTab} onLogout={onLogout} badge="مدير عام" user={user} t={t} syncStatus={syncStatus}>
-      {tab === "overview"  && <AdminOverview players={players} coaches={coaches} groups={groups} payments={payments} t={t} />}
+      {tab === "overview"  && <AdminOverview players={players} coaches={coaches} groups={groups} payments={payments} attendance={attendance} t={t} />}
       {tab === "teams"     && <AdminTeams groups={groups} setGroups={setGroups} coaches={coaches} players={players} t={t} />}
       {tab === "attendance" && <AdminAttendance groups={groups} players={players} coaches={coaches} attendance={attendance} setAttendance={setAttendance} coachesAttendance={coachesAttendance} setCoachesAttendance={setCoachesAttendance} t={t} />}
       {tab === "coaches"   && <AdminCoaches coaches={coaches} setCoaches={setCoaches} groups={groups} players={players} payments={payments} t={t} />}
@@ -1245,12 +1245,82 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
 }
 
 /* ── Admin Overview ─────────────────────────────────── */
-function AdminOverview({ players, coaches, groups, payments, t }) {
+function AdminOverview({ players, coaches, groups, payments, attendance = [], t }) {
   const total   = payments.reduce((a, p) => a + p.amount, 0);
   const month   = payments.filter(p => p.month === CUR_MONTH).reduce((a, p) => a + p.amount, 0);
   const active  = players.filter(p => p.status === "نشط").length;
   const unpaid  = players.filter(p => !payments.some(pay => pay.playerId === p.id && pay.type === "subscription" && pay.month === CUR_MONTH)).length;
   const byType  = Object.entries(PAY_TYPES).map(([k, v]) => ({ ...v, k, total: payments.filter(p => p.type === k).reduce((a, p) => a + p.amount, 0), count: payments.filter(p => p.type === k).length }));
+
+  // Dynamic Revenue data for the last 6 months
+  const monthNames = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+  const revData = [];
+  const now = new Date();
+  const monthlyExpenses = coaches.reduce((sum, c) => sum + (Number(c.salary) || 0), 0);
+
+  for (let i = 5; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const monthName = monthNames[d.getMonth()];
+    const year = d.getFullYear();
+    const monthKey = `${monthName} ${year}`;
+    
+    const monthIncome = payments
+      .filter(p => p.month === monthKey || (p.date && p.date.startsWith(`${year}-${String(d.getMonth() + 1).padStart(2, '0')}`)))
+      .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    revData.push({
+      month: monthName,
+      income: monthIncome,
+      expenses: monthlyExpenses
+    });
+  }
+
+  // Dynamic Player Position distribution data
+  const posCounts = {};
+  players.forEach(p => {
+    const pos = p.position || "غير محدد";
+    posCounts[pos] = (posCounts[pos] || 0) + 1;
+  });
+  const posColors = ["#EF4444", "#A855F7", "#3B82F6", "#10B981", "#F59E0B", "#06B6D4", "#6B7280"];
+  const dynamicPosData = Object.entries(posCounts).map(([name, value], i) => ({
+    name,
+    value,
+    color: posColors[i % posColors.length]
+  }));
+  const posData = dynamicPosData.length > 0 ? dynamicPosData : [{ name: "لا يوجد لاعبين", value: 1, color: t.border }];
+
+  // Dynamic Weekly/Session Attendance trend (last 6 sessions)
+  const sortedAtt = [...(attendance || [])]
+    .filter(a => a.date)
+    .sort((a, b) => new Date(a.date) - new Date(b.date));
+  
+  const lastSessions = sortedAtt.slice(-6);
+  
+  const attTrend = lastSessions.map(session => {
+    let present = 0;
+    let absent = 0;
+    let excused = 0;
+    
+    if (session.records) {
+      Object.values(session.records).forEach(status => {
+        if (status === "حاضر") present++;
+        else if (status === "غائب") absent++;
+        else if (status === "بعذر") excused++;
+      });
+    }
+    
+    const dateObj = new Date(session.date);
+    const formattedDate = isNaN(dateObj) ? session.date : `${dateObj.getMonth() + 1}/${dateObj.getDate()}`;
+    
+    return {
+      week: formattedDate,
+      "حاضر": present,
+      "غائب": absent,
+      "بعذر": excused
+    };
+  });
+
+  const finalAttTrend = attTrend.length > 0 ? attTrend : [{ week: "لا يوجد بيانات", "حاضر": 0, "غائب": 0, "بعذر": 0 }];
 
   return (
     <div>
@@ -1264,16 +1334,16 @@ function AdminOverview({ players, coaches, groups, payments, t }) {
       <div style={{ display: "grid", gridTemplateColumns: "1.6fr 1fr", gap: 14, marginBottom: 14 }} className="s2">
         <Card t={t} style={{ padding: 22 }}>
           <div style={{ fontWeight: 700, fontSize: 13, color: t.text, marginBottom: 4 }}>💰 الإيرادات مقابل المصروفات</div>
-          <div style={{ fontSize: 11, color: t.textDim, marginBottom: 14 }}>آخر 7 أشهر</div>
+          <div style={{ fontSize: 11, color: t.textDim, marginBottom: 14 }}>آخر 6 أشهر</div>
           <ResponsiveContainer width="100%" height={200}>
-            <AreaChart data={REV_DATA}>
+            <AreaChart data={revData}>
               <defs>
                 <linearGradient id="gInc" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#7C49A8" stopOpacity={.3}/><stop offset="95%" stopColor="#7C49A8" stopOpacity={0}/></linearGradient>
                 <linearGradient id="gExp" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#EF4444" stopOpacity={.2}/><stop offset="95%" stopColor="#EF4444" stopOpacity={0}/></linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false}/>
               <XAxis dataKey="month" tick={{ fill: t.textDim, fontSize: 10 }} axisLine={false} tickLine={false}/>
-              <YAxis tick={{ fill: t.textDim, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => `${v / 1000}k`}/>
+              <YAxis tick={{ fill: t.textDim, fontSize: 10 }} axisLine={false} tickLine={false} tickFormatter={v => v >= 1000 ? `${v / 1000}k` : v}/>
               <Tooltip content={<ArabicTooltip />}/>
               <Area type="monotone" dataKey="income"   name="الإيرادات"  stroke="#7C49A8" strokeWidth={2.5} fill="url(#gInc)" dot={{ fill: "#7C49A8", r: 4 }} activeDot={{ r: 6 }}/>
               <Area type="monotone" dataKey="expenses" name="المصروفات" stroke="#EF4444" strokeWidth={2}   fill="url(#gExp)" dot={{ fill: "#EF4444", r: 3 }} activeDot={{ r: 5 }}/>
@@ -1285,14 +1355,14 @@ function AdminOverview({ players, coaches, groups, payments, t }) {
           <div style={{ fontSize: 11, color: t.textDim, marginBottom: 10 }}>{players.length} لاعب</div>
           <ResponsiveContainer width="100%" height={160}>
             <PieChart>
-              <Pie data={POS_DATA} cx="50%" cy="50%" innerRadius={40} outerRadius={68} paddingAngle={4} dataKey="value" animationDuration={1200}>
-                {POS_DATA.map((e, i) => <Cell key={i} fill={e.color} />)}
+              <Pie data={posData} cx="50%" cy="50%" innerRadius={40} outerRadius={68} paddingAngle={4} dataKey="value" animationDuration={1200}>
+                {posData.map((e, i) => <Cell key={i} fill={e.color || t.border} />)}
               </Pie>
               <Tooltip content={<ArabicTooltip />}/>
             </PieChart>
           </ResponsiveContainer>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "5px 10px", marginTop: 6 }}>
-            {POS_DATA.map((d, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: t.textDim }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: d.color }}/>{d.name} <span style={{ color: d.color, fontWeight: 700 }}>{d.value}</span></div>)}
+            {players.length > 0 ? posData.map((d, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 5, fontSize: 11, color: t.textDim }}><div style={{ width: 8, height: 8, borderRadius: "50%", background: d.color }}/>{d.name} <span style={{ color: d.color, fontWeight: 700 }}>{d.value}</span></div>) : <div style={{ fontSize: 11, color: t.textFaint }}>لا توجد بيانات مواضع للاعبين</div>}
           </div>
         </Card>
       </div>
@@ -1300,9 +1370,9 @@ function AdminOverview({ players, coaches, groups, payments, t }) {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 14 }} className="s3">
         <Card t={t} style={{ padding: 22 }}>
           <div style={{ fontWeight: 700, fontSize: 13, color: t.text, marginBottom: 4 }}>📋 الحضور الأسبوعي</div>
-          <div style={{ fontSize: 11, color: t.textDim, marginBottom: 14 }}>آخر 6 أسابيع</div>
+          <div style={{ fontSize: 11, color: t.textDim, marginBottom: 14 }}>آخر 6 حصص تدريبية</div>
           <ResponsiveContainer width="100%" height={180}>
-            <BarChart data={ATT_TREND} barSize={12} barCategoryGap="30%">
+            <BarChart data={finalAttTrend} barSize={12} barCategoryGap="30%">
               <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false}/>
               <XAxis dataKey="week" tick={{ fill: t.textDim, fontSize: 10 }} axisLine={false} tickLine={false}/>
               <YAxis tick={{ fill: t.textDim, fontSize: 10 }} axisLine={false} tickLine={false}/>
