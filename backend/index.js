@@ -15,7 +15,7 @@ app.use(express.json());
 // --- Health & Diagnostics ---
 app.get('/api/health', (req, res) => {
   const dbHost = (process.env.DATABASE_URL || '').replace(/:[^@]+@/, ':***@');
-  res.json({ status: 'ok', dbHost });
+  res.json({ status: 'ok', dbHost, version: 'reset-v1' });
 });
 
 app.post('/api/reset-database', async (req, res) => {
