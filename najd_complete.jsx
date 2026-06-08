@@ -819,9 +819,11 @@ export default function App() {
 
   const [syncStatus, setSyncStatus] = useState("synced"); // 'synced', 'syncing', 'error'
   const [lastUpdate, setLastUpdateState] = useState(() => parseInt(localStorage.getItem('najd_last_update') || '0'));
-  const [lastLocalWrite, setLastLocalWrite] = useState(0);
+  const lastLocalWriteRef = useRef(0);
   const pendingSyncsRef = useRef(0);
-  const markLocalWrite = () => setLastLocalWrite(Date.now());
+  const markLocalWrite = () => {
+    lastLocalWriteRef.current = Date.now();
+  };
 
   const setLastUpdate = (val) => {
     const time = val !== undefined ? val : Date.now();
@@ -887,12 +889,17 @@ export default function App() {
 
     const fetchData = async () => {
       // Skip background update if we are actively syncing or a local write occurred recently
-      if (syncStatus === "syncing" || pendingSyncsRef.current > 0 || Date.now() - lastLocalWrite < 8000) {
+      if (syncStatus === "syncing" || pendingSyncsRef.current > 0 || Date.now() - lastLocalWriteRef.current < 8000) {
         return;
       }
       try {
         const res = await fetch(`${API_URL}/api/initial-data`);
         const data = await res.json();
+        
+        // Double check right before setting the state in case a write happened while the fetch was in flight
+        if (Date.now() - lastLocalWriteRef.current < 8000 || pendingSyncsRef.current > 0) {
+          return;
+        }
         if (data.players) {
           // Auto-repair missing logins/data for display
           const repaired = data.players.map(p => {
@@ -924,7 +931,7 @@ export default function App() {
 
     const interval = setInterval(fetchData, 6000);
     return () => clearInterval(interval);
-  }, [user, syncStatus, lastLocalWrite]);
+  }, [user, syncStatus]);
 
   useEffect(() => {
     localStorage.setItem('najd_players', JSON.stringify(players));

@@ -305,7 +305,10 @@ app.post('/api/coaches', async (req, res) => {
       });
       await prisma.group.update({
         where: { id: c.groupId },
-        data: { coach: { connect: { id: coach.id } } }
+        data: { 
+          coachId: coach.id,
+          coach: { connect: { id: coach.id } } 
+        }
       });
     }
 
@@ -333,11 +336,11 @@ app.post('/api/groups', async (req, res) => {
     }
 
     // 2. Upsert Group
-    const updateData = { name: g.name, color: g.color };
+    const updateData = { name: g.name, color: g.color, coachId: coachId };
     if (coachId) updateData.coach = { connect: { id: coachId } };
     else updateData.coach = { disconnect: true };
 
-    const createData = { id: g.id, name: g.name, color: g.color };
+    const createData = { id: g.id, name: g.name, color: g.color, coachId: coachId };
     if (coachId) createData.coach = { connect: { id: coachId } };
 
     const group = await prisma.group.upsert({
