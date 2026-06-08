@@ -820,6 +820,7 @@ export default function App() {
   const [syncStatus, setSyncStatus] = useState("synced"); // 'synced', 'syncing', 'error'
   const [lastUpdate, setLastUpdateState] = useState(() => parseInt(localStorage.getItem('najd_last_update') || '0'));
   const [lastLocalWrite, setLastLocalWrite] = useState(0);
+  const pendingSyncsRef = useRef(0);
   const markLocalWrite = () => setLastLocalWrite(Date.now());
 
   const setLastUpdate = (val) => {
@@ -831,6 +832,7 @@ export default function App() {
   const syncWithAPI = async (table, item, isDeleted = false) => {
     if (!API_URL) return;
     markLocalWrite();
+    pendingSyncsRef.current++;
     setSyncStatus("syncing");
     try {
       const endpointMap = {
@@ -861,10 +863,16 @@ export default function App() {
         const errorData = await res.json().catch(() => ({}));
         throw new Error(errorData.error || `HTTP error! status: ${res.status}`);
       }
-      setSyncStatus("synced");
+      markLocalWrite();
     } catch (e) {
       console.error(`Sync error for ${table}:`, e);
       setSyncStatus("error");
+    } finally {
+      pendingSyncsRef.current--;
+      if (pendingSyncsRef.current <= 0) {
+        pendingSyncsRef.current = 0;
+        setSyncStatus(s => s === "error" ? "error" : "synced");
+      }
     }
   };
 
@@ -878,8 +886,8 @@ export default function App() {
     if (!API_URL) return;
 
     const fetchData = async () => {
-      // Skip background update if we are actively syncing or a local write occurred in the last 3 seconds
-      if (syncStatus === "syncing" || Date.now() - lastLocalWrite < 3000) {
+      // Skip background update if we are actively syncing or a local write occurred recently
+      if (syncStatus === "syncing" || pendingSyncsRef.current > 0 || Date.now() - lastLocalWrite < 8000) {
         return;
       }
       try {
@@ -940,6 +948,7 @@ export default function App() {
     groups, 
     setGroups: (val) => {
       if (typeof val === 'function') {
+        markLocalWrite();
         setGroups(prev => {
           const next = val(prev);
           setLastUpdate();
@@ -963,6 +972,7 @@ export default function App() {
     coaches,
     setCoaches: (val) => {
       if (typeof val === 'function') {
+        markLocalWrite();
         setCoaches(prev => {
           const next = val(prev);
           setLastUpdate();
@@ -986,6 +996,7 @@ export default function App() {
     players,
     setPlayers: (val) => {
       if (typeof val === 'function') {
+        markLocalWrite();
         setPlayers(prev => {
           const next = val(prev);
           setLastUpdate();
@@ -1015,6 +1026,7 @@ export default function App() {
     payments,
     setPayments: (val) => {
       if (typeof val === 'function') {
+        markLocalWrite();
         setPayments(prev => {
           const next = val(prev);
           setLastUpdate();
@@ -1038,6 +1050,7 @@ export default function App() {
     attendance, 
     setAttendance: (val) => {
       if (typeof val === 'function') {
+        markLocalWrite();
         setAttendance(prev => {
           const next = val(prev);
           setLastUpdate();
@@ -1073,6 +1086,7 @@ export default function App() {
     evals, 
     setEvals: (val) => {
       if (typeof val === 'function') {
+        markLocalWrite();
         setEvals(prev => {
           const next = val(prev);
           setLastUpdate();
@@ -1096,6 +1110,7 @@ export default function App() {
     messages, 
     setMessages: (val) => {
       if (typeof val === 'function') {
+        markLocalWrite();
         setMessages(prev => {
           const next = val(prev);
           setLastUpdate();
@@ -1120,6 +1135,7 @@ export default function App() {
     trainings, 
     setTrainings: (val) => {
       if (typeof val === 'function') {
+        markLocalWrite();
         setTrainings(prev => {
           const next = val(prev);
           setLastUpdate();
