@@ -18,6 +18,43 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', dbHost });
 });
 
+app.post('/api/reset-database', async (req, res) => {
+  const { secret } = req.body;
+  if (secret !== 'NajdLaunch2026') {
+    return res.status(403).json({ error: 'Unauthorized reset request' });
+  }
+  try {
+    console.log("Cleaning database for production launch...");
+    await prisma.message.deleteMany();
+    await prisma.evaluation.deleteMany();
+    await prisma.attendance.deleteMany();
+    await prisma.payment.deleteMany();
+    await prisma.training.deleteMany();
+    await prisma.player.deleteMany();
+    await prisma.coach.deleteMany();
+    await prisma.parent.deleteMany();
+    await prisma.group.deleteMany();
+    await prisma.user.deleteMany();
+
+    console.log("Seeding admin user...");
+    await prisma.user.create({
+      data: {
+        id: "admin",
+        email: "admin@najd.sa",
+        password: "Najd@2026",
+        role: "ADMIN",
+        name: "مدير النادي"
+      }
+    });
+
+    res.json({ success: true, message: 'Database successfully prepared for production launch!' });
+  } catch (error) {
+    console.error("Error resetting database:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 // --- Auth Routes ---
 app.post('/api/login', async (req, res) => {
   const { email, password } = req.body;
