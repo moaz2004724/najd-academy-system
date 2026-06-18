@@ -2,8 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import * as XLSX from "xlsx";
 import logoImg from "./logo.png";
-import html2canvas from "html2canvas";
-import { jsPDF } from "jspdf";
 
 /* ═══ SETTINGS ════════════════════════════════════════ */
 const API_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) || (
@@ -2049,7 +2047,6 @@ const ACADEMY_WEBSITE = "https://najd-academy-system.vercel.app/";
 
 function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
   const invoiceRef = useRef(null);
-  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   // Collect all payments for the same player in the same month
   const relatedPayments = allPayments.filter(
@@ -2074,107 +2071,102 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
     year: 'numeric', month: 'long', day: 'numeric'
   });
 
-  // QR code via Google Charts API (no external library needed)
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(ACADEMY_WEBSITE)}&bgcolor=ffffff&color=6D28D9&margin=4`;
 
-  const handleDownloadPDF = async () => {
-    if (!invoiceRef.current || isGeneratingPDF) return;
-    setIsGeneratingPDF(true);
-    try {
-      // Clone the invoice element OUTSIDE the dark modal overlay to avoid dark background
-      const source = invoiceRef.current;
-      const wrapper = document.createElement('div');
-      wrapper.setAttribute('dir', 'rtl');
-      wrapper.setAttribute('lang', 'ar');
-      wrapper.style.cssText = [
-        'position:fixed', 'top:0', 'left:-9999px',
-        'width:794px', 'background:#ffffff',
-        'direction:rtl', 'font-family:Cairo,sans-serif',
-        'z-index:-1', 'overflow:visible'
-      ].join(';');
-      // Clone children individually to preserve images
-      const clone = source.cloneNode(true);
-      clone.style.minHeight = 'auto';
-      wrapper.appendChild(clone);
-      document.body.appendChild(wrapper);
-
-      // Wait for fonts + images inside clone to settle
-      await new Promise(r => setTimeout(r, 500));
-
-      const canvas = await html2canvas(wrapper, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        width: 794,
-        windowWidth: 794,
-        logging: false
-      });
-      document.body.removeChild(wrapper);
-
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      const pdfW = pdf.internal.pageSize.getWidth();   // 210mm
-      const pdfH = pdf.internal.pageSize.getHeight();  // 297mm
-      const pxPerMM = canvas.width / pdfW;
-      const totalMM = canvas.height / pxPerMM;
-
-      if (totalMM <= pdfH) {
-        // Fits in one page — center vertically if short
-        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfW, totalMM);
-      } else {
-        // Multi-page: slice canvas into A4-sized chunks with white fill
-        const pageHeightPx = Math.floor(pdfH * pxPerMM);
-        let yOffset = 0;
-        let pageNum = 0;
-        while (yOffset < canvas.height) {
-          const sliceH = Math.min(pageHeightPx, canvas.height - yOffset);
-          const pageCanvas = document.createElement('canvas');
-          pageCanvas.width = canvas.width;
-          pageCanvas.height = pageHeightPx; // Always full page height (white fill for remainder)
-          const ctx = pageCanvas.getContext('2d');
-          ctx.fillStyle = '#ffffff';
-          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
-          ctx.drawImage(canvas, 0, yOffset, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
-          if (pageNum > 0) pdf.addPage();
-          pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', 0, 0, pdfW, pdfH);
-          yOffset += pageHeightPx;
-          pageNum++;
-        }
-      }
-      pdf.save(`\u0641\u0627\u062a\u0648\u0631\u0629-${payment.playerName}-${payment.month}.pdf`);
-    } catch (e) {
-      console.error('PDF generation failed:', e);
-      alert('\u062d\u062f\u062b \u062e\u0637\u0623 \u0623\u062b\u0646\u0627\u0621 \u062a\u0648\u0644\u064a\u062f PDF\u060c \u062c\u0631\u0628 \u0627\u0644\u0637\u0628\u0627\u0639\u0629 \u0628\u062f\u0644\u0627\u064b \u0645\u0646 \u0630\u0644\u0643.');
-    } finally {
-      setIsGeneratingPDF(false);
-    }
-  };
-
-  const handlePrint = () => {
+  // ── Opens a full standalone invoice page in a new window
+  // mode: 'print' → auto-triggers print dialog
+  //        'share' → shows Share button using navigator.share
+  const openInvoiceWindow = (mode) => {
     const content = invoiceRef.current;
-    const printWindow = window.open('', '_blank');
-    printWindow.document.write(`
-      <!DOCTYPE html>
-      <html dir="rtl" lang="ar">
-      <head>
-        <meta charset="UTF-8">
-        <title>فاتورة - ${payment.playerName}</title>
-        <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
-        <style>
-          * { margin: 0; padding: 0; box-sizing: border-box; }
-          body { font-family: 'Cairo', sans-serif; direction: rtl; background: #fff; color: #1a1a2e; }
-          @page { size: A4; margin: 0; }
-          @media print {
-            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-          }
-        </style>
-      </head>
-      <body>${content.innerHTML}</body>
-      </html>
-    `);
-    printWindow.document.close();
-    setTimeout(() => { printWindow.focus(); printWindow.print(); }, 700);
+    if (!content) return;
+    const win = window.open('', '_blank');
+    if (!win) { alert('يرجى السماح لفتح نوافذ منبثقة من المتصفح'); return; }
+
+    const shareBtn = mode === 'share' ? `
+      <button class="btn btn-gold" onclick="doShare()">📤 مشاركة</button>` : '';
+
+    const shareScript = mode === 'share' ? `
+      async function doShare() {
+        const title = 'فاتورة مشترك — نادي نجد الرياض';
+        const text = [
+          'فاتورة مشترك — نادي نجد الرياض',
+          'اللاعب: ${payment.playerName}',
+          'الشهر: ${payment.month}',
+          'المجموع: ${fmtMoney(totalAmount)}',
+          '',
+          'للدخول لبوابة ولي الأمر:',
+          '${ACADEMY_WEBSITE}'
+        ].join('\\n');
+        if (navigator.share) {
+          try {
+            await navigator.share({ title, text, url: '${ACADEMY_WEBSITE}' });
+            return;
+          } catch(e) { /* cancelled */ }
+        }
+        // Fallback: open print dialog so user can save PDF and share
+        window.print();
+      }` : '';
+
+    const autoPrint = mode === 'print' ?
+      `window.addEventListener('load', function() { setTimeout(function(){ window.print(); }, 800); });` : '';
+
+    win.document.write(`<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>فاتورة — ${payment.playerName} — ${payment.month}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { font-family: 'Cairo', sans-serif !important; direction: rtl; background: #120e28; }
+    .action-bar {
+      position: sticky; top: 0; z-index: 9999;
+      background: linear-gradient(135deg,#4C1D95,#7C3AED);
+      padding: 12px 20px; display: flex; align-items: center;
+      justify-content: space-between; gap: 10px; flex-wrap: wrap;
+    }
+    .action-bar-title { color:#fff; font-weight:800; font-size:14px; font-family:'Cairo',sans-serif; }
+    .btn {
+      padding: 8px 18px; border-radius: 8px; border: none; cursor: pointer;
+      font-family: 'Cairo', sans-serif; font-size: 13px; font-weight: 800;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+    .btn-gold { background: #FBBF24; color: #1a1a2e; }
+    .btn-ghost { background: rgba(255,255,255,0.15); color: #fff; }
+    .invoice-page {
+      max-width: 794px; margin: 20px auto; background: #fff;
+      box-shadow: 0 20px 60px rgba(0,0,0,.6);
+    }
+    @page { size: A4; margin: 0; }
+    @media print {
+      body { background: #fff !important; }
+      .action-bar { display: none !important; }
+      .invoice-page { margin: 0 !important; box-shadow: none !important; max-width: 100% !important; }
+      * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="action-bar">
+    <span class="action-bar-title">🧾 فاتورة — ${payment.playerName}</span>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      ${shareBtn}
+      <button class="btn btn-ghost" onclick="window.print()">\u{1F5A8}\uFE0F طباعة ‏/ حفظ PDF</button>
+    </div>
+  </div>
+  <div class="invoice-page">${content.innerHTML}</div>
+  <script>
+    ${shareScript}
+    ${autoPrint}
+  <\/script>
+</body>
+</html>`);
+    win.document.close();
   };
+
+  const handlePrint = () => openInvoiceWindow('print');
+  const handleShare = () => openInvoiceWindow('share');
 
   return (
     <div style={{
@@ -2193,14 +2185,12 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
         }}>
           <span style={{ color: '#fff', fontWeight: 800, fontSize: 14, fontFamily: "'Cairo',sans-serif" }}>🧾 فاتورة مشترك — {payment.playerName}</span>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button onClick={handleDownloadPDF} disabled={isGeneratingPDF} style={{
+            <button onClick={handleShare} style={{
               padding: '8px 18px', borderRadius: 8, border: 'none',
-              background: isGeneratingPDF ? 'rgba(255,255,255,0.1)' : '#FBBF24', color: '#1a1a2e',
-              fontSize: 12, fontWeight: 800, cursor: isGeneratingPDF ? 'not-allowed' : 'pointer',
+              background: '#FBBF24', color: '#1a1a2e',
+              fontSize: 12, fontWeight: 800, cursor: 'pointer',
               fontFamily: "'Cairo',sans-serif", display: 'flex', alignItems: 'center', gap: 6
-            }}>
-              {isGeneratingPDF ? '⏳ جاري التوليد...' : '⬇️ تنزيل PDF'}
-            </button>
+            }}>📤 مشاركة</button>
             <button onClick={handlePrint} style={{
               padding: '8px 18px', borderRadius: 8, border: 'none',
               background: 'rgba(255,255,255,0.15)', color: '#fff',
