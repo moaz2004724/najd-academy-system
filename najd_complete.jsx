@@ -2040,8 +2040,227 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t 
 }
 
 /* ── Admin Payments ─────────────────────────────────── */
+/* ══════════════════════════════════════════════════════════
+   INVOICE MODAL — Full Arabic Invoice with Print & WhatsApp
+══════════════════════════════════════════════════════════ */
+function InvoiceModal({ payment, allPayments, players, onClose }) {
+  const invoiceRef = useRef(null);
+
+  // Collect all payments for the same player in the same month
+  const relatedPayments = allPayments.filter(
+    p => p.playerId === payment.playerId && p.month === payment.month
+  );
+
+  const player = players.find(p => p.id === payment.playerId);
+  const totalAmount = relatedPayments.reduce((sum, p) => sum + p.amount, 0);
+  const invoiceNum = `INV-${payment.id.replace(/\D/g, '').slice(-8).padStart(8, '0')}`;
+
+  const TERMS = [
+    "لا يحق للمشترك المطالبة بأي مبلغ في حال أراد عدم الاكمال في التدريبات لأي ظرف كان.",
+    "في حال اكتشفت الأكاديمية أي مشكلة مرضية أو سلوكية على المشترك لم يتم الإفصاح عنها يحق للأكاديمية استبعاد المشترك دون الرجوع لولي الأمر.",
+    "المشترك هو المسؤول عن نظافة اللبس المخصص للأكاديمية ولا يسمح له بدخول أي تمرين ألا به ولا يسمح له بمشاركة المشترك في أي نشاط في حال كان اللبس غير لائق.",
+    "يتدرب المشترك 12 تدريب شهرياً يكون من بداية تاريخ أول تدريب.",
+    "الأكاديمية حلقة وصل بين المشترك وصاحب الباص والأمر هو المسؤول من إرسال الابن واستقباله بعد الانتهاء من التدريب.",
+    "الأكاديمية مسؤوليه كامله عن استقبال المشتركين وتوديعهم ومتابعة حركة الباص."
+  ];
+
+  const todayStr = new Date().toLocaleDateString('ar-EG', {
+    year: 'numeric', month: 'long', day: 'numeric'
+  });
+
+  const handlePrint = () => {
+    const content = invoiceRef.current;
+    const printWindow = window.open('', '_blank');
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html dir="rtl" lang="ar">
+      <head>
+        <meta charset="UTF-8">
+        <title>فاتورة - ${payment.playerName}</title>
+        <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
+        <style>
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { font-family: 'Cairo', sans-serif; direction: rtl; background: #fff; color: #1a1a2e; }
+          @media print {
+            body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+            .no-print { display: none !important; }
+          }
+        </style>
+      </head>
+      <body>
+        ${content.innerHTML}
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 600);
+  };
+
+  const handleWhatsApp = () => {
+    const items = relatedPayments.map((p, i) => `${i + 1}. ${PAY_TYPES[p.type]?.label || p.type} — ${p.month} — ${fmtMoney(p.amount)}`).join('%0A');
+    const msg = `*فاتورة مشترك - نادي نجد الرياض*%0A%0A` +
+      `رقم الفاتورة: ${invoiceNum}%0A` +
+      `اسم اللاعب: ${payment.playerName}%0A` +
+      `الشهر: ${payment.month}%0A` +
+      `تاريخ الإصدار: ${todayStr}%0A%0A` +
+      `*البنود:*%0A${items}%0A%0A` +
+      `*إجمالي مبلغ الاشتراك المستحق: ${fmtMoney(totalAmount)}*%0A%0A` +
+      `نادي نجد الرياض · أكاديمية كرة القدم`;
+    window.open(`https://wa.me/?text=${msg}`, '_blank');
+  };
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
+      display: 'flex', alignItems: 'flex-start', justifyContent: 'center',
+      padding: '20px 16px', overflowY: 'auto'
+    }} onClick={e => e.target === e.currentTarget && onClose()}>
+      <div style={{ width: '100%', maxWidth: 780, borderRadius: 16, overflow: 'hidden', boxShadow: '0 25px 80px rgba(0,0,0,0.5)' }}>
+        {/* Action Bar */}
+        <div style={{
+          background: 'linear-gradient(135deg,#5A1FA8,#7C3AED)',
+          padding: '14px 20px',
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'space-between'
+        }}>
+          <span style={{ color: '#fff', fontWeight: 700, fontSize: 14, fontFamily: "'Cairo',sans-serif" }}>🧾 معاينة الفاتورة</span>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button onClick={handlePrint} style={{
+              padding: '8px 18px', borderRadius: 8, border: 'none',
+              background: 'rgba(255,255,255,0.15)', color: '#fff',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              fontFamily: "'Cairo',sans-serif", display: 'flex', alignItems: 'center', gap: 6
+            }}>🖨️ طباعة</button>
+            <button onClick={handleWhatsApp} style={{
+              padding: '8px 18px', borderRadius: 8, border: 'none',
+              background: '#25D366', color: '#fff',
+              fontSize: 13, fontWeight: 700, cursor: 'pointer',
+              fontFamily: "'Cairo',sans-serif", display: 'flex', alignItems: 'center', gap: 6
+            }}>📱 إرسال واتساب</button>
+            <button onClick={onClose} style={{
+              padding: '8px 14px', borderRadius: 8, border: 'none',
+              background: 'rgba(255,255,255,0.08)', color: '#fff',
+              fontSize: 18, cursor: 'pointer', lineHeight: 1
+            }}>✕</button>
+          </div>
+        </div>
+
+        {/* Invoice Content */}
+        <div ref={invoiceRef} style={{ background: '#ffffff', direction: 'rtl', fontFamily: "'Cairo', sans-serif" }}>
+          <style>{`
+            @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
+            .inv-root * { font-family: 'Cairo', sans-serif !important; }
+          `}</style>
+
+          {/* Header */}
+          <div style={{ padding: '30px 40px 20px', borderBottom: '3px solid #7C3AED', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div>
+              <div style={{ fontSize: 13, fontWeight: 800, color: '#7C3AED', marginBottom: 4 }}>{invoiceNum}</div>
+              <div style={{ fontSize: 11, color: '#888' }}>رقم الفاتورة</div>
+            </div>
+            <div style={{ textAlign: 'center' }}>
+              <div style={{ fontSize: 26, fontWeight: 900, color: '#1a1a2e', letterSpacing: '-0.5px' }}>نادي نجد الرياض</div>
+              <div style={{ fontSize: 13, color: '#666', marginTop: 2 }}>أكاديمية كرة القدم</div>
+            </div>
+            <div style={{ textAlign: 'left' }}>
+              <img src={`${window.location.origin}/logo.png`} alt="نادي نجد" style={{ width: 64, height: 64, objectFit: 'contain', borderRadius: 12 }} onError={e => e.target.style.display='none'}/>
+            </div>
+          </div>
+
+          {/* Invoice Title Bar */}
+          <div style={{ background: 'linear-gradient(135deg,#6D28D9,#7C3AED)', margin: '0 0 24px', padding: '14px 40px', textAlign: 'center' }}>
+            <div style={{ color: '#fff', fontSize: 20, fontWeight: 900, letterSpacing: 1 }}>فاتورة مشترك</div>
+          </div>
+
+          {/* Player Info Card */}
+          <div style={{ margin: '0 40px 24px', background: '#f8f5ff', borderRadius: 12, padding: '20px 24px', border: '1px solid #e8d5ff' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px 30px' }}>
+              <div>
+                <div style={{ fontSize: 11, color: '#999', marginBottom: 3 }}>اسم اللاعب</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a2e' }}>{payment.playerName}</div>
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: 11, color: '#999', marginBottom: 3 }}>الشهر</div>
+                <div style={{ fontSize: 15, fontWeight: 800, color: '#1a1a2e' }}>{payment.month}</div>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, color: '#999', marginBottom: 3 }}>تاريخ الإصدار</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#1a1a2e' }}>{todayStr}</div>
+              </div>
+              <div style={{ textAlign: 'left' }}>
+                <div style={{ fontSize: 11, color: '#999', marginBottom: 3 }}>المستلم</div>
+                <div style={{ fontSize: 14, fontWeight: 700, color: '#7C3AED' }}>{payment.coachName || 'الإدارة'}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* Items Table */}
+          <div style={{ margin: '0 40px 24px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', borderRadius: 10, overflow: 'hidden' }}>
+              <thead>
+                <tr style={{ background: 'linear-gradient(135deg,#6D28D9,#7C3AED)' }}>
+                  {['#', 'البند', 'التفاصيل', 'المبلغ'].map(h => (
+                    <th key={h} style={{ padding: '12px 16px', textAlign: h === 'المبلغ' ? 'left' : 'right', fontSize: 13, fontWeight: 800, color: '#fff' }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {relatedPayments.map((p, idx) => {
+                  const pt = PAY_TYPES[p.type];
+                  return (
+                    <tr key={p.id} style={{ background: idx % 2 === 0 ? '#fff' : '#faf8ff', borderBottom: '1px solid #ede9f9' }}>
+                      <td style={{ padding: '13px 16px', fontSize: 13, fontWeight: 700, color: '#555' }}>{idx + 1}</td>
+                      <td style={{ padding: '13px 16px', fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>
+                        {pt?.icon} {pt?.label || p.type}
+                      </td>
+                      <td style={{ padding: '13px 16px', fontSize: 12, color: '#666' }}>{p.month}{p.note ? ` — ${p.note}` : ''}</td>
+                      <td style={{ padding: '13px 16px', fontSize: 14, fontWeight: 900, color: '#7C3AED', textAlign: 'left' }}>{fmtMoney(p.amount)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Total Bar */}
+          <div style={{ margin: '0 40px 24px', background: 'linear-gradient(135deg,#6D28D9,#7C3AED)', borderRadius: 12, padding: '18px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ color: '#fff', fontSize: 16, fontWeight: 800 }}>إجمالي مبلغ الاشتراك المستحق</div>
+            <div style={{ color: '#FBBF24', fontSize: 22, fontWeight: 900 }}>{fmtMoney(totalAmount)}</div>
+          </div>
+
+          {/* Terms */}
+          <div style={{ margin: '0 40px 24px', background: '#FFFBEB', borderRadius: 12, padding: '18px 24px', border: '1px solid #FDE68A' }}>
+            <div style={{ color: '#D97706', fontWeight: 800, fontSize: 13, marginBottom: 12 }}>📋 الشروط والأحكام</div>
+            <ol style={{ paddingRight: 18, margin: 0 }}>
+              {TERMS.map((term, i) => (
+                <li key={i} style={{ fontSize: 11, color: '#374151', lineHeight: '1.8', marginBottom: 4 }}>{term}</li>
+              ))}
+            </ol>
+          </div>
+
+          {/* Signature */}
+          <div style={{ margin: '0 40px 24px', borderTop: '2px dashed #ddd', paddingTop: 24 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a2e', marginBottom: 20 }}>توقيع ولي الأمر</div>
+            <div style={{ width: 200, borderBottom: '1.5px solid #333', marginBottom: 8, height: 36 }}></div>
+            <div style={{ fontSize: 11, color: '#888' }}>الاسم والتوقيع</div>
+          </div>
+
+          {/* Footer */}
+          <div style={{ borderTop: '1px solid #eee', padding: '14px 40px', textAlign: 'center' }}>
+            <div style={{ fontSize: 11, color: '#aaa' }}>نادي نجد الرياض · أكاديمية كرة القدم · تم إنشاء هذه الفاتورة إلكترونياً</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminPayments({ payments, setPayments, players, coaches, prices, t }) {
   const [modal, setModal] = useState(false);
+  const [invoicePay, setInvoicePay] = useState(null);
   const [fc, setFc] = useState("الكل");
   const [ft, setFt] = useState("الكل");
   
@@ -2113,7 +2332,7 @@ function AdminPayments({ payments, setPayments, players, coaches, prices, t }) {
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ background: t.bg, borderBottom: `1px solid ${t.border}` }}>
-              {["اللاعب", "النوع", "الشهر", "المبلغ", "المستلم", "التاريخ", "ملاحظة"].map(h => (
+              {["اللاعب", "النوع", "الشهر", "المبلغ", "المستلم", "التاريخ", "ملاحظة", "فاتورة"].map(h => (
                 <th key={h} style={{ padding: "12px 14px", textAlign: "right", fontSize: 10, color: t.textDim, fontWeight: 700 }}>{h}</th>
               ))}
             </tr>
@@ -2130,6 +2349,23 @@ function AdminPayments({ payments, setPayments, players, coaches, prices, t }) {
                   <td style={{ padding: "11px 14px", fontSize: 11, color: "#A78BFA", fontWeight: 600 }}>{p.coachName || "الإدارة"}</td>
                   <td style={{ padding: "11px 14px", fontSize: 11, color: t.textDim }}>{p.date}</td>
                   <td style={{ padding: "11px 14px", fontSize: 11, color: t.textDim }}>{p.note || "—"}</td>
+                  <td style={{ padding: "8px 14px" }}>
+                    <button
+                      onClick={() => setInvoicePay(p)}
+                      title="إصدار فاتورة"
+                      style={{
+                        padding: "6px 12px", borderRadius: 8, border: "1px solid #7C3AED",
+                        background: "rgba(124,58,237,0.10)", color: "#A78BFA",
+                        fontSize: 11, fontWeight: 700, cursor: "pointer",
+                        fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 5,
+                        transition: "all .15s", whiteSpace: "nowrap"
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(124,58,237,0.22)"; e.currentTarget.style.color = "#C4B5FD"; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = "rgba(124,58,237,0.10)"; e.currentTarget.style.color = "#A78BFA"; }}
+                    >
+                      🧾 فاتورة
+                    </button>
+                  </td>
                 </tr>
               );
             })}
@@ -2172,6 +2408,14 @@ function AdminPayments({ payments, setPayments, players, coaches, prices, t }) {
           
           <div style={{ display: "flex", gap: 10 }}><Btn onClick={save} style={{ flex: 1 }}>💾 تسجيل المدفوعات</Btn><Btn variant="secondary" onClick={() => setModal(false)}>إلغاء</Btn></div>
         </Modal>
+      )}
+      {invoicePay && (
+        <InvoiceModal
+          payment={invoicePay}
+          allPayments={payments}
+          players={players}
+          onClose={() => setInvoicePay(null)}
+        />
       )}
     </div>
   );
