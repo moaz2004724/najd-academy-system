@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from "react";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import * as XLSX from "xlsx";
 import logoImg from "./logo.png";
-import logo2Img from "./logo2.png";
 import html2canvas from "html2canvas";
 import { jsPDF } from "jspdf";
 
@@ -2046,7 +2045,7 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t 
 /* ══════════════════════════════════════════════════════════
    INVOICE MODAL — A4 Arabic Invoice: Logo, QR, Credentials, PDF
 ══════════════════════════════════════════════════════════ */
-const ACADEMY_WEBSITE = "https://najd-academy.vercel.app";
+const ACADEMY_WEBSITE = "https://najd-academy-system.vercel.app/";
 
 function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
   const invoiceRef = useRef(null);
@@ -2082,41 +2081,70 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
     if (!invoiceRef.current || isGeneratingPDF) return;
     setIsGeneratingPDF(true);
     try {
-      // A4: 210mm x 297mm at 96dpi ≈ 794 x 1123px
-      const canvas = await html2canvas(invoiceRef.current, {
+      // Clone the invoice element OUTSIDE the dark modal overlay to avoid dark background
+      const source = invoiceRef.current;
+      const wrapper = document.createElement('div');
+      wrapper.setAttribute('dir', 'rtl');
+      wrapper.setAttribute('lang', 'ar');
+      wrapper.style.cssText = [
+        'position:fixed', 'top:0', 'left:-9999px',
+        'width:794px', 'background:#ffffff',
+        'direction:rtl', 'font-family:Cairo,sans-serif',
+        'z-index:-1', 'overflow:visible'
+      ].join(';');
+      // Clone children individually to preserve images
+      const clone = source.cloneNode(true);
+      clone.style.minHeight = 'auto';
+      wrapper.appendChild(clone);
+      document.body.appendChild(wrapper);
+
+      // Wait for fonts + images inside clone to settle
+      await new Promise(r => setTimeout(r, 500));
+
+      const canvas = await html2canvas(wrapper, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#ffffff',
         width: 794,
-        windowWidth: 794
+        windowWidth: 794,
+        logging: false
       });
-      const imgData = canvas.toDataURL('image/png');
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: 'a4'
-      });
-      const pdfWidth = pdf.internal.pageSize.getWidth();   // 210mm
-      const pdfHeight = pdf.internal.pageSize.getHeight();  // 297mm
-      const imgRatio = canvas.height / canvas.width;
-      const imgHeightMM = pdfWidth * imgRatio;
+      document.body.removeChild(wrapper);
 
-      if (imgHeightMM <= pdfHeight) {
-        pdf.addImage(imgData, 'PNG', 0, 0, pdfWidth, imgHeightMM);
+      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+      const pdfW = pdf.internal.pageSize.getWidth();   // 210mm
+      const pdfH = pdf.internal.pageSize.getHeight();  // 297mm
+      const pxPerMM = canvas.width / pdfW;
+      const totalMM = canvas.height / pxPerMM;
+
+      if (totalMM <= pdfH) {
+        // Fits in one page — center vertically if short
+        pdf.addImage(canvas.toDataURL('image/png'), 'PNG', 0, 0, pdfW, totalMM);
       } else {
-        // Multi-page support
-        let yPos = 0;
-        while (yPos < imgHeightMM) {
-          pdf.addImage(imgData, 'PNG', 0, -yPos, pdfWidth, imgHeightMM);
-          yPos += pdfHeight;
-          if (yPos < imgHeightMM) pdf.addPage();
+        // Multi-page: slice canvas into A4-sized chunks with white fill
+        const pageHeightPx = Math.floor(pdfH * pxPerMM);
+        let yOffset = 0;
+        let pageNum = 0;
+        while (yOffset < canvas.height) {
+          const sliceH = Math.min(pageHeightPx, canvas.height - yOffset);
+          const pageCanvas = document.createElement('canvas');
+          pageCanvas.width = canvas.width;
+          pageCanvas.height = pageHeightPx; // Always full page height (white fill for remainder)
+          const ctx = pageCanvas.getContext('2d');
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, pageCanvas.width, pageCanvas.height);
+          ctx.drawImage(canvas, 0, yOffset, canvas.width, sliceH, 0, 0, canvas.width, sliceH);
+          if (pageNum > 0) pdf.addPage();
+          pdf.addImage(pageCanvas.toDataURL('image/png'), 'PNG', 0, 0, pdfW, pdfH);
+          yOffset += pageHeightPx;
+          pageNum++;
         }
       }
-      pdf.save(`فاتورة-${payment.playerName}-${payment.month}.pdf`);
+      pdf.save(`\u0641\u0627\u062a\u0648\u0631\u0629-${payment.playerName}-${payment.month}.pdf`);
     } catch (e) {
       console.error('PDF generation failed:', e);
-      alert('حدث خطأ أثناء توليد PDF، جرب الطباعة بدلاً من ذلك.');
+      alert('\u062d\u062f\u062b \u062e\u0637\u0623 \u0623\u062b\u0646\u0627\u0621 \u062a\u0648\u0644\u064a\u062f PDF\u060c \u062c\u0631\u0628 \u0627\u0644\u0637\u0628\u0627\u0639\u0629 \u0628\u062f\u0644\u0627\u064b \u0645\u0646 \u0630\u0644\u0643.');
     } finally {
       setIsGeneratingPDF(false);
     }
@@ -2201,23 +2229,21 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
             @import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap');
           `}</style>
 
-          {/* ── Header: Logo Left + Academy Name Center + Logo2 Right ── */}
+          {/* ── Header: Logo Center + Invoice number right ── */}
           <div style={{ padding: '28px 40px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            {/* Invoice number */}
-            <div style={{ minWidth: 120 }}>
+            {/* Invoice number on right */}
+            <div style={{ minWidth: 120, textAlign: 'right' }}>
               <div style={{ fontSize: 13, fontWeight: 900, color: '#6D28D9' }}>{invoiceNum}</div>
               <div style={{ fontSize: 10, color: '#aaa', marginTop: 2 }}>رقم الفاتورة</div>
             </div>
-            {/* Academy name + main logo */}
+            {/* Academy name + single logo */}
             <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
               <img src={logoImg} alt="نادي نجد" style={{ width: 70, height: 70, objectFit: 'contain' }}/>
               <div style={{ fontSize: 22, fontWeight: 900, color: '#1a1a2e', letterSpacing: '-0.3px', lineHeight: 1.2 }}>نادي نجد الرياض</div>
               <div style={{ fontSize: 12, color: '#777' }}>أكاديمية كرة القدم</div>
             </div>
-            {/* Second logo */}
-            <div style={{ minWidth: 120, display: 'flex', justifyContent: 'flex-end' }}>
-              <img src={logo2Img} alt="نجد" style={{ width: 70, height: 70, objectFit: 'contain', opacity: 0.9 }}/>
-            </div>
+            {/* Empty spacer to keep layout balanced */}
+            <div style={{ minWidth: 120 }}></div>
           </div>
 
           {/* Divider */}
@@ -2322,12 +2348,12 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
               </div>
               <div style={{ marginTop: 10 }}>
                 <a href={ACADEMY_WEBSITE} target="_blank" rel="noreferrer" style={{
-                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  display: 'inline-flex', alignItems: 'center', gap: 8,
                   background: 'linear-gradient(135deg,#1D4ED8,#3B82F6)',
                   color: '#fff', textDecoration: 'none',
-                  padding: '7px 16px', borderRadius: 8,
-                  fontSize: 11, fontWeight: 800
-                }}>🌐 زيارة موقع الأكاديمية ← {ACADEMY_WEBSITE}</a>
+                  padding: '8px 18px', borderRadius: 8,
+                  fontSize: 12, fontWeight: 800
+                }}>🔐 التوجه إلى لوحة تحكم ولي الأمر</a>
               </div>
             </div>
           )}
