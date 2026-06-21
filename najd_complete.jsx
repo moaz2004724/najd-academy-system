@@ -37,6 +37,139 @@ const isTrainingActive = (tr) => {
   }
 };
 
+const formatArabicDate = (dateStr) => {
+  if (!dateStr) return "";
+  try {
+    const parts = dateStr.split("-");
+    const d = new Date(parts[0], parts[1] - 1, parts[2]);
+    const months = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
+    return `${d.getDate()} ${months[d.getMonth()]}`;
+  } catch (e) {
+    return dateStr;
+  }
+};
+
+const getPlayerSubscriptionDetails = (player, trainings, attendance) => {
+  if (!player || !player.groupId || !player.joinDate) {
+    return {
+      cycleSessions: [],
+      attendedCount: 0,
+      absentCount: 0,
+      excusedCount: 0,
+      remainingCount: 0,
+      cycleIndex: 1
+    };
+  }
+
+  const groupTrainings = (trainings || []).filter(tr => tr.groupId === player.groupId);
+  const trainingDays = [];
+  groupTrainings.forEach(tr => {
+    if (tr.days && Array.isArray(tr.days)) {
+      tr.days.forEach(d => {
+        if (!trainingDays.includes(d)) trainingDays.push(d);
+      });
+    }
+  });
+
+  if (trainingDays.length === 0) {
+    return {
+      cycleSessions: [],
+      attendedCount: 0,
+      absentCount: 0,
+      excusedCount: 0,
+      remainingCount: 0,
+      cycleIndex: 1
+    };
+  }
+
+  const ARABIC_DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+
+  const joinParts = player.joinDate.split("-");
+  const joinDate = new Date(joinParts[0], joinParts[1] - 1, joinParts[2]);
+  joinDate.setHours(0, 0, 0, 0);
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const pastScheduledDates = [];
+  let current = new Date(joinDate);
+  
+  let loopCount = 0;
+  while (current <= today && loopCount < 5000) {
+    loopCount++;
+    const dayName = ARABIC_DAYS[current.getDay()];
+    if (trainingDays.includes(dayName)) {
+      pastScheduledDates.push(new Date(current));
+    }
+    current.setDate(current.getDate() + 1);
+  }
+
+  const N = pastScheduledDates.length;
+  const completedCycles = Math.floor(N / 12);
+  const cycleStartIndex = completedCycles * 12;
+
+  const cycleSessions = [];
+  for (let i = cycleStartIndex; i < N; i++) {
+    const d = pastScheduledDates[i];
+    const dateStr = d.toISOString().split("T")[0];
+    
+    const record = (attendance || []).find(a => a.date === dateStr && a.groupId === player.groupId);
+    let status = "حاضر";
+    if (record && record.records && record.records[player.id]) {
+      status = record.records[player.id];
+    }
+    
+    cycleSessions.push({
+      date: dateStr,
+      isFuture: false,
+      status: status
+    });
+  }
+
+  let futureCurrent = new Date(today);
+  futureCurrent.setDate(futureCurrent.getDate() + 1);
+
+  let safetyCount = 0;
+  while (cycleSessions.length < 12 && safetyCount < 1000) {
+    safetyCount++;
+    const dayName = ARABIC_DAYS[futureCurrent.getDay()];
+    if (trainingDays.includes(dayName)) {
+      const dateStr = futureCurrent.toISOString().split("T")[0];
+      cycleSessions.push({
+        date: dateStr,
+        isFuture: true,
+        status: "قادم"
+      });
+    }
+    futureCurrent.setDate(futureCurrent.getDate() + 1);
+  }
+
+  let attendedCount = 0;
+  let absentCount = 0;
+  let excusedCount = 0;
+  let remainingCount = 0;
+
+  cycleSessions.forEach(s => {
+    if (s.isFuture) {
+      remainingCount++;
+    } else {
+      if (s.status === "حاضر") attendedCount++;
+      else if (s.status === "غائب") absentCount++;
+      else if (s.status === "بعذر") excusedCount++;
+    }
+  });
+
+  return {
+    cycleSessions,
+    attendedCount,
+    absentCount,
+    excusedCount,
+    remainingCount,
+    cycleIndex: completedCycles + 1
+  };
+};
+
+
 /* ═══ LOGO ═══════════════════════════════════════════ */
 const NajdLogo = ({ size = 48 }) => {
   return (
@@ -1234,7 +1367,7 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
       {tab === "teams"     && <AdminTeams groups={groups} setGroups={setGroups} coaches={coaches} players={players} t={t} />}
       {tab === "attendance" && <AdminAttendance groups={groups} players={players} coaches={coaches} attendance={attendance} setAttendance={setAttendance} coachesAttendance={coachesAttendance} setCoachesAttendance={setCoachesAttendance} t={t} />}
       {tab === "coaches"   && <AdminCoaches coaches={coaches} setCoaches={setCoaches} groups={groups} players={players} payments={payments} t={t} />}
-      {tab === "players"   && <AdminPlayers players={players} setPlayers={setPlayers} groups={groups} parents={parents} evals={evals} coaches={coaches} t={t} />}
+      {tab === "players"   && <AdminPlayers players={players} setPlayers={setPlayers} groups={groups} parents={parents} evals={evals} coaches={coaches} t={t} trainings={trainings} attendance={attendance} />}
       {tab === "payments"  && <AdminPayments payments={payments} setPayments={setPayments} players={players} coaches={coaches} parents={parents} prices={prices} t={t} />}
       {tab === "prices"    && <AdminPrices prices={prices} setPrices={setPrices} t={t} />}
       {tab === "schedule"  && <AdminTrainings trainings={trainings} setTrainings={setTrainings} groups={groups} coaches={coaches} t={t} />}
@@ -1799,7 +1932,7 @@ function AdminCoaches({ coaches, setCoaches, groups, players, payments, t }) {
 }
 
 /* ── Admin Players ──────────────────────────────────── */
-function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t }) {
+function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t, trainings, attendance }) {
   const [sel, setSel]   = useState(null);
   const [modal, setModal] = useState(false);
   const [search, setSearch] = useState("");
@@ -1813,6 +1946,10 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t 
       setTimeout(() => setSel(null), 0);
       return <div style={{ padding: 40, textAlign: "center", color: t.textDim }}>جاري تحميل بيانات اللاعب...</div>;
     }
+    const subDetails = getPlayerSubscriptionDetails(p, trainings, attendance);
+    const totalPast = subDetails.attendedCount + subDetails.absentCount + subDetails.excusedCount;
+    const computedAttendancePct = totalPast > 0 ? Math.round((subDetails.attendedCount / totalPast) * 100) : 100;
+
     const lastEval = (evals || []).filter(e => e.playerId === p.id).slice(-1)[0];
     const g   = groups.find(x => x.id === p.groupId);
     const par = parents.find(x => x.id === p.parentId);
@@ -1832,7 +1969,8 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t 
               ["الوزن", `${p.weight || '—'} كجم`],
               ["الأهداف", p.goals || 0],
               ["التمريرات", p.assists || 0],
-              ["الحضور", `${p.attendancePct || 0}%`],
+              ["حضور الاشتراك الحالي", `${subDetails.attendedCount} / 12 حصة`],
+              ["نسبة حضور الدورة", `${computedAttendancePct}%`],
               ["المجموعة", g?.name || "—"],
               ["ولي الأمر", par?.name || "—"],
               ["إيميل الدخول", par?.email || p.email || "—"],
@@ -1884,6 +2022,66 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t 
                 <div style={{ textAlign: "center", color: t.textFaint, padding: "20px 0", fontSize: 12 }}>لا توجد ملاحظات تقييمية مسجلة بعد</div>
               )}
             </Card>
+            <Card t={t} style={{ padding: 22 }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: t.text, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                <span>📅</span> تفاصيل الاشتراك والتحضير (الدورة {subDetails.cycleIndex})
+              </div>
+              
+              <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 60, background: "rgba(16,185,129,0.08)", padding: "10px 6px", borderRadius: 12, textAlign: "center", border: "1px solid rgba(16,185,129,0.12)" }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: "#10B981" }}>{subDetails.attendedCount}</div>
+                  <div style={{ fontSize: 10, color: t.textDim, fontWeight: 700 }}>حاضر</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 60, background: "rgba(239,68,68,0.08)", padding: "10px 6px", borderRadius: 12, textAlign: "center", border: "1px solid rgba(239,68,68,0.12)" }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: "#EF4444" }}>{subDetails.absentCount}</div>
+                  <div style={{ fontSize: 10, color: t.textDim, fontWeight: 700 }}>غائب</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 60, background: "rgba(245,158,11,0.08)", padding: "10px 6px", borderRadius: 12, textAlign: "center", border: "1px solid rgba(245,158,11,0.12)" }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: "#F59E0B" }}>{subDetails.excusedCount}</div>
+                  <div style={{ fontSize: 10, color: t.textDim, fontWeight: 700 }}>بعذر</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 60, background: t.bg2, padding: "10px 6px", borderRadius: 12, textAlign: "center", border: `1px solid ${t.border}` }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: t.textDim }}>{subDetails.remainingCount}</div>
+                  <div style={{ fontSize: 10, color: t.textDim, fontWeight: 700 }}>متبقي</div>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 10 }}>
+                {subDetails.cycleSessions.map((s, idx) => {
+                  let bgColor = t.bg2;
+                  let borderCol = t.border;
+                  let textColor = t.textDim;
+                  let icon = "⭕";
+                  
+                  if (!s.isFuture) {
+                    if (s.status === "حاضر") {
+                      bgColor = "rgba(16,185,129,0.08)";
+                      borderCol = "rgba(16,185,129,0.2)";
+                      textColor = "#10B981";
+                      icon = "✅";
+                    } else if (s.status === "غائب") {
+                      bgColor = "rgba(239,68,68,0.08)";
+                      borderCol = "rgba(239,68,68,0.2)";
+                      textColor = "#EF4444";
+                      icon = "❌";
+                    } else if (s.status === "بعذر") {
+                      bgColor = "rgba(245,158,11,0.08)";
+                      borderCol = "rgba(245,158,11,0.2)";
+                      textColor = "#F59E0B";
+                      icon = "⚠️";
+                    }
+                  }
+                  
+                  return (
+                    <div key={idx} style={{ background: bgColor, border: `1px solid ${borderCol}`, padding: "10px 6px", borderRadius: 14, textAlign: "center", display: "flex", flexDirection: "column", gap: 4, alignItems: "center", boxShadow: "0 2px 6px rgba(0,0,0,0.01)" }}>
+                      <div style={{ fontSize: 10, color: t.textFaint, fontWeight: 700 }}>حصة {idx + 1}</div>
+                      <div style={{ fontSize: 14 }}>{icon}</div>
+                      <div style={{ fontSize: 9, fontWeight: 800, color: textColor }}>{formatArabicDate(s.date)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
           </div>
         </div>
         {modal && (
@@ -1931,7 +2129,7 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t 
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr style={{ background: t.bg, borderBottom: `1px solid ${t.border}` }}>
-              {["اللاعب", "الفريق", "المركز", "الإيميل", "الحالة", "التقييم", ""].map(h => (
+              {["اللاعب", "الفريق", "المركز", "الحصص المحضورة", "الحالة", "التقييم", ""].map(h => (
                 <th key={h} style={{ padding: "12px 14px", textAlign: "right", fontSize: 10, color: t.textDim, fontWeight: 700 }}>{h}</th>
               ))}
             </tr>
@@ -1939,6 +2137,7 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t 
           <tbody>
             {filtered.map(p => {
               const g = groups.find(x => x.id === p.groupId);
+              const subDetails = getPlayerSubscriptionDetails(p, trainings, attendance);
               return (
                 <tr key={p.id} className={t.name === "dark" ? "rh" : "rhl"} style={{ borderBottom: `1px solid ${t.border}`, transition: "background .15s", cursor: "pointer" }} onClick={() => setSel(p.id)}>
                   <td style={{ padding: "11px 14px" }}>
@@ -1949,7 +2148,9 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t 
                   </td>
                   <td style={{ padding: "11px 14px" }}><Chip text={g?.name || "—"} color={g?.color || "#7C49A8"}/></td>
                   <td style={{ padding: "11px 14px" }}><Chip text={p.position} color="#06B6D4"/></td>
-                  <td style={{ padding: "11px 14px", fontSize: 11, color: t.textDim }}>{p.email || "—"}</td>
+                  <td style={{ padding: "11px 14px" }}>
+                    <span style={{ fontSize: 12, fontWeight: 700, color: "#10B981" }}>{subDetails.attendedCount} / 12</span>
+                  </td>
                   <td style={{ padding: "11px 14px" }}><Chip text={p.status} color={p.status === "نشط" ? "#10B981" : "#EF4444"}/></td>
                   <td style={{ padding: "11px 14px", fontSize: 13, fontWeight: 800, color: p.score > 80 ? "#10B981" : p.score > 60 ? "#F59E0B" : "#EF4444" }}>{p.score}</td>
                   <td style={{ padding: "11px 14px" }}>
@@ -3125,12 +3326,28 @@ function AdminAttendance({ groups, players, coaches, attendance, setAttendance, 
   useEffect(() => {
     if (subTab === "players") {
       const existing = attendance.find(a => a.date === date && a.groupId === selGroup);
-      setRecords(existing?.records || {});
+      if (existing) {
+        setRecords(existing.records || {});
+      } else {
+        const defaultRecs = {};
+        players.filter(p => p.groupId === selGroup).forEach(p => {
+          defaultRecs[p.id] = "حاضر";
+        });
+        setRecords(defaultRecs);
+      }
     } else {
       const existing = coachesAttendance.find(a => a.date === date);
-      setRecords(existing?.records || {});
+      if (existing) {
+        setRecords(existing.records || {});
+      } else {
+        const defaultRecs = {};
+        coaches.forEach(c => {
+          defaultRecs[c.id] = "حاضر";
+        });
+        setRecords(defaultRecs);
+      }
     }
-  }, [date, selGroup, subTab, attendance, coachesAttendance]);
+  }, [date, selGroup, subTab, attendance, coachesAttendance, players, coaches]);
 
   const save = () => {
     if (subTab === "players") {
@@ -3222,7 +3439,7 @@ function CoachPortal({ user, onLogout, groups, coaches, players, parents, paymen
     <Shell title={coach.name} subtitle={`مدرب ${group?.name || ""}`} color="#06B6D4" tabs={tabs} activeTab={tab} setActiveTab={setTab} onLogout={onLogout} badge={group?.name} user={user} t={t} syncStatus={syncStatus}>
       {tab === "home"       && <CoachHome coach={coach} group={group} groups={groups} myPlayers={myPlayers} attendance={attendance} evals={evals} trainings={trainings} t={t}/>}
       {tab === "sessions"   && <CoachSessions coach={coach} group={group} groups={groups} trainings={trainings} t={t}/>}
-      {tab === "players"    && <CoachPlayers myPlayers={myPlayers} group={group} evals={evals} t={t}/>}
+      {tab === "players"    && <CoachPlayers myPlayers={myPlayers} group={group} evals={evals} t={t} trainings={trainings} attendance={attendance}/>}
       {tab === "attendance" && perms.attendance !== false && <CoachAttendance coachId={user.id} group={group} myPlayers={myPlayers} attendance={attendance} setAttendance={setAttendance} t={t}/>}
       {tab === "eval"       && perms.evals !== false      && <CoachEval coachId={user.id} myPlayers={myPlayers} evals={evals} setEvals={setEvals} t={t}/>}
       {tab === "payments"   && perms.payments !== false   && <CoachPayments coachId={user.id} myPlayers={myPlayers} payments={payments} setPayments={setPayments} prices={prices} coaches={coaches} t={t}/>}
@@ -3533,12 +3750,15 @@ function CoachSessions({ coach, group, groups, trainings, t }) {
 }
 
 /* ── Coach Players ──────────────────────────────────── */
-function CoachPlayers({ myPlayers, group, evals, t }) {
+function CoachPlayers({ myPlayers, group, evals, t, trainings, attendance }) {
   const [sel, setSel] = useState(null);
   if (sel) {
     const p  = myPlayers.find(x => x.id === sel);
     const pe = evals.filter(e => e.playerId === p.id).slice(-3);
     const lastEval = evals.filter(e => e.playerId === p.id).slice(-1)[0];
+    const subDetails = getPlayerSubscriptionDetails(p, trainings, attendance);
+    const totalPast = subDetails.attendedCount + subDetails.absentCount + subDetails.excusedCount;
+    const computedAttendancePct = totalPast > 0 ? Math.round((subDetails.attendedCount / totalPast) * 100) : 100;
     return (
       <div>
         <button onClick={() => setSel(null)} style={{ background: t.bg2, border: `1px solid ${t.border}`, color: t.textDim, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", marginBottom: 18, fontFamily: "'Cairo',sans-serif" }}>← رجوع</button>
@@ -3549,7 +3769,7 @@ function CoachPlayers({ myPlayers, group, evals, t }) {
               <div style={{ fontWeight: 800, fontSize: 15, marginTop: 10, marginBottom: 6, color: t.text }}>{p.name}</div>
               <Chip text={p.position} color="#06B6D4"/>
             </div>
-            {[["العمر", `${p.age} سنة`], ["الطول", `${p.height} سم`], ["الوزن", `${p.weight} كجم`], ["الأهداف", p.goals], ["التمريرات", p.assists], ["الحضور", `${p.attendancePct}%`]].map(([k, v]) => (
+            {[["العمر", `${p.age} سنة`], ["الطول", `${p.height || '—'} سم`], ["الوزن", `${p.weight || '—'} كجم`], ["الأهداف", p.goals || 0], ["التمريرات", p.assists || 0], ["حضور الاشتراك الحالي", `${subDetails.attendedCount} / 12 حصة`], ["نسبة حضور الدورة", `${computedAttendancePct}%`]].map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${t.border}`, fontSize: 12 }}>
                 <span style={{ color: t.textDim }}>{k}</span><span style={{ fontWeight: 600, color: t.text }}>{v}</span>
               </div>
@@ -3584,6 +3804,66 @@ function CoachPlayers({ myPlayers, group, evals, t }) {
                 : <div style={{ textAlign: "center", color: t.textFaint, padding: "20px 0", fontSize: 12 }}>لم يتم تقييم اللاعب بعد</div>
               }
             </Card>
+            <Card t={t} style={{ padding: 22 }}>
+              <div style={{ fontWeight: 800, fontSize: 14, color: t.text, marginBottom: 16, display: "flex", alignItems: "center", gap: 8 }}>
+                <span>📅</span> تفاصيل الاشتراك والتحضير (الدورة {subDetails.cycleIndex})
+              </div>
+              
+              <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+                <div style={{ flex: 1, minWidth: 60, background: "rgba(16,185,129,0.08)", padding: "10px 6px", borderRadius: 12, textAlign: "center", border: "1px solid rgba(16,185,129,0.12)" }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: "#10B981" }}>{subDetails.attendedCount}</div>
+                  <div style={{ fontSize: 10, color: t.textDim, fontWeight: 700 }}>حاضر</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 60, background: "rgba(239,68,68,0.08)", padding: "10px 6px", borderRadius: 12, textAlign: "center", border: "1px solid rgba(239,68,68,0.12)" }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: "#EF4444" }}>{subDetails.absentCount}</div>
+                  <div style={{ fontSize: 10, color: t.textDim, fontWeight: 700 }}>غائب</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 60, background: "rgba(245,158,11,0.08)", padding: "10px 6px", borderRadius: 12, textAlign: "center", border: "1px solid rgba(245,158,11,0.12)" }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: "#F59E0B" }}>{subDetails.excusedCount}</div>
+                  <div style={{ fontSize: 10, color: t.textDim, fontWeight: 700 }}>بعذر</div>
+                </div>
+                <div style={{ flex: 1, minWidth: 60, background: t.bg2, padding: "10px 6px", borderRadius: 12, textAlign: "center", border: `1px solid ${t.border}` }}>
+                  <div style={{ fontSize: 18, fontWeight: 900, color: t.textDim }}>{subDetails.remainingCount}</div>
+                  <div style={{ fontSize: 10, color: t.textDim, fontWeight: 700 }}>متبقي</div>
+                </div>
+              </div>
+
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 10 }}>
+                {subDetails.cycleSessions.map((s, idx) => {
+                  let bgColor = t.bg2;
+                  let borderCol = t.border;
+                  let textColor = t.textDim;
+                  let icon = "⭕";
+                  
+                  if (!s.isFuture) {
+                    if (s.status === "حاضر") {
+                      bgColor = "rgba(16,185,129,0.08)";
+                      borderCol = "rgba(16,185,129,0.2)";
+                      textColor = "#10B981";
+                      icon = "✅";
+                    } else if (s.status === "غائب") {
+                      bgColor = "rgba(239,68,68,0.08)";
+                      borderCol = "rgba(239,68,68,0.2)";
+                      textColor = "#EF4444";
+                      icon = "❌";
+                    } else if (s.status === "بعذر") {
+                      bgColor = "rgba(245,158,11,0.08)";
+                      borderCol = "rgba(245,158,11,0.2)";
+                      textColor = "#F59E0B";
+                      icon = "⚠️";
+                    }
+                  }
+                  
+                  return (
+                    <div key={idx} style={{ background: bgColor, border: `1px solid ${borderCol}`, padding: "10px 6px", borderRadius: 14, textAlign: "center", display: "flex", flexDirection: "column", gap: 4, alignItems: "center", boxShadow: "0 2px 6px rgba(0,0,0,0.01)" }}>
+                      <div style={{ fontSize: 10, color: t.textFaint, fontWeight: 700 }}>حصة {idx + 1}</div>
+                      <div style={{ fontSize: 14 }}>{icon}</div>
+                      <div style={{ fontSize: 9, fontWeight: 800, color: textColor }}>{formatArabicDate(s.date)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </Card>
           </div>
         </div>
       </div>
@@ -3591,22 +3871,25 @@ function CoachPlayers({ myPlayers, group, evals, t }) {
   }
   return (
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 14 }}>
-      {myPlayers.map(p => (
-        <Card key={p.id} hover t={t} style={{ padding: 20, cursor: "pointer" }} onClick={() => setSel(p.id)}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-            <Avatar name={p.name} size={40} color="#06B6D4"/>
-            <div><div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{p.name}</div><div style={{ fontSize: 11, color: t.textDim }}>{p.position}</div></div>
-          </div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
-            {[["أهداف", p.goals, "#EF4444"], ["تمريرات", p.assists, "#10B981"], ["حضور", `${p.attendancePct}%`, "#7C49A8"], ["تقييم", p.score, "#F59E0B"]].map(([l, v, c]) => (
-              <div key={l} style={{ background: t.bg, borderRadius: 7, padding: "7px 9px" }}>
-                <div style={{ fontSize: 10, color: t.textDim }}>{l}</div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: c }}>{v}</div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      ))}
+      {myPlayers.map(p => {
+        const subDetails = getPlayerSubscriptionDetails(p, trainings, attendance);
+        return (
+          <Card key={p.id} hover t={t} style={{ padding: 20, cursor: "pointer" }} onClick={() => setSel(p.id)}>
+            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+              <Avatar name={p.name} size={40} color="#06B6D4"/>
+              <div><div style={{ fontSize: 13, fontWeight: 700, color: t.text }}>{p.name}</div><div style={{ fontSize: 11, color: t.textDim }}>{p.position}</div></div>
+            </div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 7 }}>
+              {[["أهداف", p.goals || 0, "#EF4444"], ["تمريرات", p.assists || 0, "#10B981"], ["الاشتراك", `${subDetails.attendedCount} / 12`, "#7C49A8"], ["التقييم", p.score || 0, "#F59E0B"]].map(([l, v, c]) => (
+                <div key={l} style={{ background: t.bg, borderRadius: 7, padding: "7px 9px" }}>
+                  <div style={{ fontSize: 10, color: t.textDim }}>{l}</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: c }}>{v}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        );
+      })}
     </div>
   );
 }
@@ -3615,10 +3898,24 @@ function CoachPlayers({ myPlayers, group, evals, t }) {
 function CoachAttendance({ coachId, group, myPlayers, attendance, setAttendance, t }) {
   const [date, setDate]     = useState(new Date().toISOString().split("T")[0]);
   const [records, setRecords] = useState({});
+  useEffect(() => {
+    const existing = (attendance || []).find(a => a.date === date && a.groupId === group?.id);
+    if (existing) {
+      setRecords(existing.records || {});
+    } else {
+      const defaultRecs = {};
+      myPlayers.forEach(p => {
+        defaultRecs[p.id] = "حاضر";
+      });
+      setRecords(defaultRecs);
+    }
+  }, [date, group, myPlayers, attendance]);
+
   const save = () => {
-    if (!Object.keys(records).length) return;
-    setAttendance(a => [...a, { id: `att${Date.now()}`, date, groupId: group?.id, coachId, records }]);
-    setRecords({});
+    setAttendance(prev => {
+      const filtered = prev.filter(a => !(a.date === date && a.groupId === group?.id));
+      return [...filtered, { id: `att${Date.now()}`, date, groupId: group?.id, coachId, records }];
+    });
     alert("✅ تم حفظ الحضور");
   };
   const counts = { حاضر: Object.values(records).filter(v => v === "حاضر").length, غائب: Object.values(records).filter(v => v === "غائب").length, بعذر: Object.values(records).filter(v => v === "بعذر").length };
@@ -3827,7 +4124,7 @@ function ParentPortal({ user, onLogout, players, groups, coaches, parents, payme
           ))}
         </div>
       )}
-      {tab === "overview"   && <ParentOverview child={child} childGroup={childGroup} childCoach={childCoach} childPays={childPays} childEvals={childEvals} prices={prices} trainings={trainings} coaches={coaches} t={t}/>}
+      {tab === "overview"   && <ParentOverview child={child} childGroup={childGroup} childCoach={childCoach} childPays={childPays} childEvals={childEvals} prices={prices} trainings={trainings} coaches={coaches} t={t} attendance={attendance}/>}
       {tab === "scores"     && <ParentScores child={child} childEvals={childEvals} childCoach={childCoach} t={t}/>}
       {tab === "attendance" && <ParentAttendance child={child} childAtt={childAtt} t={t}/>}
       {tab === "payments"   && <ParentPayments child={child} childPays={childPays} prices={prices} t={t}/>}
@@ -3837,13 +4134,17 @@ function ParentPortal({ user, onLogout, players, groups, coaches, parents, payme
   );
 }
 
-function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, prices, trainings, coaches, t }) {
+function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, prices, trainings, coaches, t, attendance }) {
   if (!child) return <div style={{ textAlign: "center", color: t.textFaint, padding: 60 }}>لا يوجد أبناء مسجلين</div>;
   const lastEval  = childEvals.slice(-1)[0];
   const evalCoach = lastEval ? (coaches || []).find(c => c.id === lastEval.coachId) : null;
   const evalCoachName = evalCoach ? evalCoach.name : (childCoach?.name || "طاقم التدريب");
   const monthPaid = childPays.some(p => p.type === "subscription" && p.month === CUR_MONTH);
   const totalPaid = childPays.reduce((a, p) => a + p.amount, 0);
+
+  const subDetails = getPlayerSubscriptionDetails(child, trainings, attendance);
+  const totalPast = subDetails.attendedCount + subDetails.absentCount + subDetails.excusedCount;
+  const computedAttendancePct = totalPast > 0 ? Math.round((subDetails.attendedCount / totalPast) * 100) : 100;
 
   // Next / Upcoming training logic
   const childTrainings = (trainings || []).filter(tr => tr.groupId === child.groupId && isTrainingActive(tr));
@@ -4039,9 +4340,71 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }} className="s2">
         <StatCard label="الأهداف"   counter={child.goals || 0}         icon="⚽" color="#EF4444" t={t}/>
         <StatCard label="التمريرات" counter={child.assists || 0}       icon="🎯" color="#10B981" t={t}/>
-        <StatCard label="الحضور"    counter={child.attendancePct ? `${child.attendancePct}%` : "—"} icon="📅" color="#7C49A8" t={t}/>
+        <StatCard label="حضور الاشتراك" counter={`${subDetails.attendedCount} / 12`} icon="📅" color="#7C49A8" t={t}/>
         <StatCard label="التقييم"   counter={lastEval ? child.score : undefined} value={lastEval ? undefined : "لم يتم التقييم"} icon="⭐" color="#F59E0B" t={t}/>
       </div>
+
+      {/* Premium Subscription Card */}
+      <Card t={t} style={{ padding: 24, borderRadius: 20 }}>
+        <div style={{ fontWeight: 800, fontSize: 15, color: t.text, marginBottom: 18, display: "flex", alignItems: "center", gap: 8 }}>
+          <span>📅</span> تفاصيل اشتراك وتحضير الابن (الدورة {subDetails.cycleIndex})
+        </div>
+        
+        <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
+          <div style={{ flex: 1, minWidth: 80, background: "rgba(16,185,129,0.08)", padding: "12px 8px", borderRadius: 14, textAlign: "center", border: "1px solid rgba(16,185,129,0.12)" }}>
+            <div style={{ fontSize: 20, fontWeight: 900, color: "#10B981" }}>{subDetails.attendedCount}</div>
+            <div style={{ fontSize: 11, color: t.textDim, fontWeight: 700 }}>حاضر</div>
+          </div>
+          <div style={{ flex: 1, minWidth: 80, background: "rgba(239,68,68,0.08)", padding: "12px 8px", borderRadius: 14, textAlign: "center", border: "1px solid rgba(239,68,68,0.12)" }}>
+            <div style={{ fontSize: 20, fontWeight: 900, color: "#EF4444" }}>{subDetails.absentCount}</div>
+            <div style={{ fontSize: 11, color: t.textDim, fontWeight: 700 }}>غائب</div>
+          </div>
+          <div style={{ flex: 1, minWidth: 80, background: "rgba(245,158,11,0.08)", padding: "12px 8px", borderRadius: 14, textAlign: "center", border: "1px solid rgba(245,158,11,0.12)" }}>
+            <div style={{ fontSize: 20, fontWeight: 900, color: "#F59E0B" }}>{subDetails.excusedCount}</div>
+            <div style={{ fontSize: 11, color: t.textDim, fontWeight: 700 }}>بعذر</div>
+          </div>
+          <div style={{ flex: 1, minWidth: 80, background: t.bg2, padding: "12px 8px", borderRadius: 14, textAlign: "center", border: `1px solid ${t.border}` }}>
+            <div style={{ fontSize: 20, fontWeight: 900, color: t.textDim }}>{subDetails.remainingCount}</div>
+            <div style={{ fontSize: 11, color: t.textDim, fontWeight: 700 }}>متبقي</div>
+          </div>
+        </div>
+
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(110px, 1fr))", gap: 12 }}>
+          {subDetails.cycleSessions.map((s, idx) => {
+            let bgColor = t.bg2;
+            let borderCol = t.border;
+            let textColor = t.textDim;
+            let icon = "⭕";
+            
+            if (!s.isFuture) {
+              if (s.status === "حاضر") {
+                bgColor = "rgba(16,185,129,0.08)";
+                borderCol = "rgba(16,185,129,0.2)";
+                textColor = "#10B981";
+                icon = "✅";
+              } else if (s.status === "غائب") {
+                bgColor = "rgba(239,68,68,0.08)";
+                borderCol = "rgba(239,68,68,0.2)";
+                textColor = "#EF4444";
+                icon = "❌";
+              } else if (s.status === "بعذر") {
+                bgColor = "rgba(245,158,11,0.08)";
+                borderCol = "rgba(245,158,11,0.2)";
+                textColor = "#F59E0B";
+                icon = "⚠️";
+              }
+            }
+            
+            return (
+              <div key={idx} style={{ background: bgColor, border: `1px solid ${borderCol}`, padding: "12px 8px", borderRadius: 16, textAlign: "center", display: "flex", flexDirection: "column", gap: 5, alignItems: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.01)" }}>
+                <div style={{ fontSize: 11, color: t.textFaint, fontWeight: 700 }}>حصة {idx + 1}</div>
+                <div style={{ fontSize: 16 }}>{icon}</div>
+                <div style={{ fontSize: 10, fontWeight: 800, color: textColor }}>{formatArabicDate(s.date)}</div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
 
       {/* 4. Active details */}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }} className="s3">
