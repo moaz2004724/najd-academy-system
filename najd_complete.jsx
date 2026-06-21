@@ -162,81 +162,77 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
 
   const ARABIC_DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
-  // Timezone-safe joinDate parsing
-  const cleanJoinStr = typeof player.joinDate === "string" ? player.joinDate.substring(0, 10) : getLocalDateString(new Date(player.joinDate));
-  const joinParts = cleanJoinStr.split("-");
-  const joinDate = new Date(joinParts[0], joinParts[1] - 1, joinParts[2]);
-  joinDate.setHours(0, 0, 0, 0);
+  // Sort sub payments chronologically
+  const sortedSubPays = [...playerSubPays].sort((a, b) => a.date.localeCompare(b.date));
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const cycles = [];
+  let lastCycleEndDate = null;
+  const todayStr = getLocalDateString(new Date());
 
-  const pastScheduledDates = [];
-  let current = new Date(joinDate);
-  
-  let loopCount = 0;
-  while (current <= today && loopCount < 5000) {
-    loopCount++;
-    const dayName = ARABIC_DAYS[current.getDay()];
-    if (trainingDays.includes(dayName)) {
-      pastScheduledDates.push(new Date(current));
-    }
-    current.setDate(current.getDate() + 1);
-  }
-
-  const N = pastScheduledDates.length;
-  const completedCycles = Math.floor(N / 12);
-
-  // Cap cycleIndex and sessions by P
-  let cycleIndex = completedCycles + 1;
-  let isExpired = false;
-  if (completedCycles >= P) {
-    cycleIndex = P;
-    isExpired = true;
-  }
-
-  const cycleStartIndex = (cycleIndex - 1) * 12;
-  const cycleSessions = [];
-
-  // Add past sessions of this cycle
-  const maxPastIndex = Math.min(N, cycleIndex * 12);
-  for (let i = cycleStartIndex; i < maxPastIndex; i++) {
-    const d = pastScheduledDates[i];
-    const dateStr = getLocalDateString(d);
+  for (let c = 1; c <= P; c++) {
+    const pay = sortedSubPays[c - 1];
+    let startDateStr = pay.date;
     
-    const record = (attendance || []).find(a => compareDates(a.date, dateStr) && a.groupId === player.groupId);
-    let status = "حاضر";
-    if (record && record.records && record.records[player.id]) {
-      status = record.records[player.id];
+    if (lastCycleEndDate) {
+      if (startDateStr < lastCycleEndDate) {
+        startDateStr = lastCycleEndDate;
+      }
     }
+
+    const cycleDates = [];
     
-    cycleSessions.push({
-      date: dateStr,
-      isFuture: false,
-      status: status
+    // Parse the start date string safely
+    const parts = startDateStr.split("-");
+    let current = new Date(parts[0], parts[1] - 1, parts[2]);
+    if (lastCycleEndDate && startDateStr === lastCycleEndDate) {
+      current.setDate(current.getDate() + 1);
+    }
+    current.setHours(0, 0, 0, 0);
+
+    let safety = 0;
+    while (cycleDates.length < 12 && safety < 5000) {
+      safety++;
+      const dayName = ARABIC_DAYS[current.getDay()];
+      if (trainingDays.includes(dayName)) {
+        cycleDates.push(getLocalDateString(current));
+      }
+      current.setDate(current.getDate() + 1);
+    }
+
+    lastCycleEndDate = cycleDates[cycleDates.length - 1];
+    cycles.push({
+      cycleIndex: c,
+      sessions: cycleDates
     });
   }
 
-  // Add future sessions for this cycle (only if not expired)
-  if (!isExpired) {
-    let futureCurrent = new Date(today);
-    futureCurrent.setDate(futureCurrent.getDate() + 1);
-
-    let safetyCount = 0;
-    while (cycleSessions.length < 12 && safetyCount < 1000) {
-      safetyCount++;
-      const dayName = ARABIC_DAYS[futureCurrent.getDay()];
-      if (trainingDays.includes(dayName)) {
-        const dateStr = getLocalDateString(futureCurrent);
-        cycleSessions.push({
-          date: dateStr,
-          isFuture: true,
-          status: "قادم"
-        });
+  // The active cycle is the P-th cycle
+  const currentCycle = cycles[P - 1];
+  const lastSessionDate = currentCycle.sessions[11];
+  
+  // A cycle is expired if its last session is already in the past (strictly <= todayStr)
+  const isExpired = lastSessionDate <= todayStr;
+  
+  // Let's populate cycleSessions details for the active cycle P
+  const cycleSessions = [];
+  currentCycle.sessions.forEach(dateStr => {
+    const isFuture = dateStr > todayStr;
+    let status = "حاضر";
+    if (!isFuture) {
+      const record = (attendance || []).find(a => compareDates(a.date, dateStr) && a.groupId === player.groupId);
+      if (record && record.records && record.records[player.id]) {
+        status = record.records[player.id];
       }
-      futureCurrent.setDate(futureCurrent.getDate() + 1);
+    } else {
+      status = "قادم";
     }
-  }
+
+    cycleSessions.push({
+      date: dateStr,
+      isFuture,
+      status
+    });
+  });
 
   let attendedCount = 0;
   let absentCount = 0;
@@ -259,7 +255,7 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
     absentCount,
     excusedCount,
     remainingCount,
-    cycleIndex,
+    cycleIndex: P,
     isUnpaid: false,
     isExpired,
     isActive: !isExpired
