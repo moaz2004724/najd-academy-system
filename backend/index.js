@@ -197,6 +197,7 @@ app.post('/api/players', async (req, res) => {
           weight: resolvedWeight,
           height: resolvedHeight,
           score: p.score ? +p.score : null,
+          joinDate: p.joinDate ? new Date(p.joinDate) : undefined,
           group: { connect: { id: p.groupId } },
           parent: { connect: { id: resolvedParentId } }
         }
@@ -210,6 +211,7 @@ app.post('/api/players', async (req, res) => {
           weight: resolvedWeight,
           height: resolvedHeight,
           score: p.score ? +p.score : 80,
+          joinDate: p.joinDate ? new Date(p.joinDate) : undefined,
           group: { connect: { id: p.groupId } },
           parent: { connect: { id: resolvedParentId } }
         }
