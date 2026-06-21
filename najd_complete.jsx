@@ -37,6 +37,21 @@ const isTrainingActive = (tr) => {
   }
 };
 
+const getLocalDateString = (date) => {
+  if (!date) return "";
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+};
+
+const compareDates = (dateVal1, dateVal2) => {
+  if (!dateVal1 || !dateVal2) return false;
+  const d1 = typeof dateVal1 === "string" ? dateVal1.substring(0, 10) : getLocalDateString(dateVal1);
+  const d2 = typeof dateVal2 === "string" ? dateVal2.substring(0, 10) : getLocalDateString(dateVal2);
+  return d1 === d2;
+};
+
 const formatArabicDate = (dateStr) => {
   if (!dateStr) return "";
   try {
@@ -111,9 +126,9 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance) => {
   const cycleSessions = [];
   for (let i = cycleStartIndex; i < N; i++) {
     const d = pastScheduledDates[i];
-    const dateStr = d.toISOString().split("T")[0];
+    const dateStr = getLocalDateString(d);
     
-    const record = (attendance || []).find(a => a.date === dateStr && a.groupId === player.groupId);
+    const record = (attendance || []).find(a => compareDates(a.date, dateStr) && a.groupId === player.groupId);
     let status = "حاضر";
     if (record && record.records && record.records[player.id]) {
       status = record.records[player.id];
@@ -134,7 +149,7 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance) => {
     safetyCount++;
     const dayName = ARABIC_DAYS[futureCurrent.getDay()];
     if (trainingDays.includes(dayName)) {
-      const dateStr = futureCurrent.toISOString().split("T")[0];
+      const dateStr = getLocalDateString(futureCurrent);
       cycleSessions.push({
         date: dateStr,
         isFuture: true,
@@ -1367,7 +1382,7 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
       {tab === "teams"     && <AdminTeams groups={groups} setGroups={setGroups} coaches={coaches} players={players} t={t} />}
       {tab === "attendance" && <AdminAttendance groups={groups} players={players} coaches={coaches} attendance={attendance} setAttendance={setAttendance} coachesAttendance={coachesAttendance} setCoachesAttendance={setCoachesAttendance} t={t} />}
       {tab === "coaches"   && <AdminCoaches coaches={coaches} setCoaches={setCoaches} groups={groups} players={players} payments={payments} t={t} />}
-      {tab === "players"   && <AdminPlayers players={players} setPlayers={setPlayers} groups={groups} parents={parents} evals={evals} coaches={coaches} t={t} trainings={trainings} attendance={attendance} />}
+      {tab === "players"   && <AdminPlayers players={players} setPlayers={setPlayers} groups={groups} parents={parents} evals={evals} coaches={coaches} t={t} trainings={trainings} attendance={attendance} payments={payments} />}
       {tab === "payments"  && <AdminPayments payments={payments} setPayments={setPayments} players={players} coaches={coaches} parents={parents} prices={prices} t={t} />}
       {tab === "prices"    && <AdminPrices prices={prices} setPrices={setPrices} t={t} />}
       {tab === "schedule"  && <AdminTrainings trainings={trainings} setTrainings={setTrainings} groups={groups} coaches={coaches} t={t} />}
@@ -1932,7 +1947,7 @@ function AdminCoaches({ coaches, setCoaches, groups, players, payments, t }) {
 }
 
 /* ── Admin Players ──────────────────────────────────── */
-function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t, trainings, attendance }) {
+function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t, trainings, attendance, payments }) {
   const [sel, setSel]   = useState(null);
   const [modal, setModal] = useState(false);
   const [search, setSearch] = useState("");
@@ -1949,6 +1964,10 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
     const subDetails = getPlayerSubscriptionDetails(p, trainings, attendance);
     const totalPast = subDetails.attendedCount + subDetails.absentCount + subDetails.excusedCount;
     const computedAttendancePct = totalPast > 0 ? Math.round((subDetails.attendedCount / totalPast) * 100) : 100;
+
+    const playerPays = (payments || []).filter(pay => pay.playerId === p.id && pay.type === "subscription");
+    const sortedPays = [...playerPays].sort((a, b) => b.date.localeCompare(a.date));
+    const latestRenewalDate = sortedPays.length > 0 ? formatArabicDate(sortedPays[0].date) : "تجديد تلقائي عند التسجيل";
 
     const lastEval = (evals || []).filter(e => e.playerId === p.id).slice(-1)[0];
     const g   = groups.find(x => x.id === p.groupId);
@@ -1973,6 +1992,8 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
               ["نسبة حضور الدورة", `${computedAttendancePct}%`],
               ["المجموعة", g?.name || "—"],
               ["ولي الأمر", par?.name || "—"],
+              ["تاريخ التسجيل", formatArabicDate(p.joinDate)],
+              ["تجديد الاشتراك", latestRenewalDate],
               ["إيميل الدخول", par?.email || p.email || "—"],
               ["كلمة المرور", par?.password || p.password || (p.phone ? `najd_${p.phone.slice(-4)}` : "كلمة مرور ولي الأمر الحالية")]
             ].map(([k, v]) => (
@@ -3320,12 +3341,12 @@ function AdminReports({ players, coaches, groups, payments, attendance, evals, t
 function AdminAttendance({ groups, players, coaches, attendance, setAttendance, coachesAttendance, setCoachesAttendance, t }) {
   const [subTab, setSubTab] = useState("players");
   const [selGroup, setSelGroup] = useState(groups[0]?.id || "");
-  const [date, setDate] = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate] = useState(getLocalDateString(new Date()));
   const [records, setRecords] = useState({});
 
   useEffect(() => {
     if (subTab === "players") {
-      const existing = attendance.find(a => a.date === date && a.groupId === selGroup);
+      const existing = attendance.find(a => compareDates(a.date, date) && a.groupId === selGroup);
       if (existing) {
         setRecords(existing.records || {});
       } else {
@@ -3336,7 +3357,7 @@ function AdminAttendance({ groups, players, coaches, attendance, setAttendance, 
         setRecords(defaultRecs);
       }
     } else {
-      const existing = coachesAttendance.find(a => a.date === date);
+      const existing = coachesAttendance.find(a => compareDates(a.date, date));
       if (existing) {
         setRecords(existing.records || {});
       } else {
@@ -3353,13 +3374,13 @@ function AdminAttendance({ groups, players, coaches, attendance, setAttendance, 
     if (subTab === "players") {
       const newAtt = { id: `att${Date.now()}`, date, groupId: selGroup, records };
       setAttendance(prev => {
-        const filtered = prev.filter(a => !(a.date === date && a.groupId === selGroup));
+        const filtered = prev.filter(a => !(compareDates(a.date, date) && a.groupId === selGroup));
         return [...filtered, newAtt];
       });
     } else {
       const newAtt = { id: `ca${Date.now()}`, date, records };
       setCoachesAttendance(prev => {
-        const filtered = prev.filter(a => a.date === date);
+        const filtered = prev.filter(a => compareDates(a.date, date));
         return [...filtered, newAtt];
       });
     }
@@ -3439,7 +3460,7 @@ function CoachPortal({ user, onLogout, groups, coaches, players, parents, paymen
     <Shell title={coach.name} subtitle={`مدرب ${group?.name || ""}`} color="#06B6D4" tabs={tabs} activeTab={tab} setActiveTab={setTab} onLogout={onLogout} badge={group?.name} user={user} t={t} syncStatus={syncStatus}>
       {tab === "home"       && <CoachHome coach={coach} group={group} groups={groups} myPlayers={myPlayers} attendance={attendance} evals={evals} trainings={trainings} t={t}/>}
       {tab === "sessions"   && <CoachSessions coach={coach} group={group} groups={groups} trainings={trainings} t={t}/>}
-      {tab === "players"    && <CoachPlayers myPlayers={myPlayers} group={group} evals={evals} t={t} trainings={trainings} attendance={attendance}/>}
+      {tab === "players"    && <CoachPlayers myPlayers={myPlayers} group={group} evals={evals} t={t} trainings={trainings} attendance={attendance} payments={payments}/>}
       {tab === "attendance" && perms.attendance !== false && <CoachAttendance coachId={user.id} group={group} myPlayers={myPlayers} attendance={attendance} setAttendance={setAttendance} t={t}/>}
       {tab === "eval"       && perms.evals !== false      && <CoachEval coachId={user.id} myPlayers={myPlayers} evals={evals} setEvals={setEvals} t={t}/>}
       {tab === "payments"   && perms.payments !== false   && <CoachPayments coachId={user.id} myPlayers={myPlayers} payments={payments} setPayments={setPayments} prices={prices} coaches={coaches} t={t}/>}
@@ -3750,7 +3771,7 @@ function CoachSessions({ coach, group, groups, trainings, t }) {
 }
 
 /* ── Coach Players ──────────────────────────────────── */
-function CoachPlayers({ myPlayers, group, evals, t, trainings, attendance }) {
+function CoachPlayers({ myPlayers, group, evals, t, trainings, attendance, payments }) {
   const [sel, setSel] = useState(null);
   if (sel) {
     const p  = myPlayers.find(x => x.id === sel);
@@ -3759,6 +3780,10 @@ function CoachPlayers({ myPlayers, group, evals, t, trainings, attendance }) {
     const subDetails = getPlayerSubscriptionDetails(p, trainings, attendance);
     const totalPast = subDetails.attendedCount + subDetails.absentCount + subDetails.excusedCount;
     const computedAttendancePct = totalPast > 0 ? Math.round((subDetails.attendedCount / totalPast) * 100) : 100;
+
+    const playerPays = (payments || []).filter(pay => pay.playerId === p.id && pay.type === "subscription");
+    const sortedPays = [...playerPays].sort((a, b) => b.date.localeCompare(a.date));
+    const latestRenewalDate = sortedPays.length > 0 ? formatArabicDate(sortedPays[0].date) : "تجديد تلقائي عند التسجيل";
     return (
       <div>
         <button onClick={() => setSel(null)} style={{ background: t.bg2, border: `1px solid ${t.border}`, color: t.textDim, borderRadius: 8, padding: "7px 14px", fontSize: 12, fontWeight: 600, cursor: "pointer", marginBottom: 18, fontFamily: "'Cairo',sans-serif" }}>← رجوع</button>
@@ -3769,7 +3794,17 @@ function CoachPlayers({ myPlayers, group, evals, t, trainings, attendance }) {
               <div style={{ fontWeight: 800, fontSize: 15, marginTop: 10, marginBottom: 6, color: t.text }}>{p.name}</div>
               <Chip text={p.position} color="#06B6D4"/>
             </div>
-            {[["العمر", `${p.age} سنة`], ["الطول", `${p.height || '—'} سم`], ["الوزن", `${p.weight || '—'} كجم`], ["الأهداف", p.goals || 0], ["التمريرات", p.assists || 0], ["حضور الاشتراك الحالي", `${subDetails.attendedCount} / 12 حصة`], ["نسبة حضور الدورة", `${computedAttendancePct}%`]].map(([k, v]) => (
+            {[
+              ["العمر", `${p.age} سنة`], 
+              ["الطول", `${p.height || '—'} سم`], 
+              ["الوزن", `${p.weight || '—'} كجم`], 
+              ["الأهداف", p.goals || 0], 
+              ["التمريرات", p.assists || 0], 
+              ["حضور الاشتراك الحالي", `${subDetails.attendedCount} / 12 حصة`], 
+              ["نسبة حضور الدورة", `${computedAttendancePct}%`],
+              ["تاريخ التسجيل", formatArabicDate(p.joinDate)],
+              ["تجديد الاشتراك", latestRenewalDate]
+            ].map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${t.border}`, fontSize: 12 }}>
                 <span style={{ color: t.textDim }}>{k}</span><span style={{ fontWeight: 600, color: t.text }}>{v}</span>
               </div>
@@ -3896,10 +3931,10 @@ function CoachPlayers({ myPlayers, group, evals, t, trainings, attendance }) {
 
 /* ── Coach Attendance ───────────────────────────────── */
 function CoachAttendance({ coachId, group, myPlayers, attendance, setAttendance, t }) {
-  const [date, setDate]     = useState(new Date().toISOString().split("T")[0]);
+  const [date, setDate]     = useState(getLocalDateString(new Date()));
   const [records, setRecords] = useState({});
   useEffect(() => {
-    const existing = (attendance || []).find(a => a.date === date && a.groupId === group?.id);
+    const existing = (attendance || []).find(a => compareDates(a.date, date) && a.groupId === group?.id);
     if (existing) {
       setRecords(existing.records || {});
     } else {
@@ -3913,7 +3948,7 @@ function CoachAttendance({ coachId, group, myPlayers, attendance, setAttendance,
 
   const save = () => {
     setAttendance(prev => {
-      const filtered = prev.filter(a => !(a.date === date && a.groupId === group?.id));
+      const filtered = prev.filter(a => !(compareDates(a.date, date) && a.groupId === group?.id));
       return [...filtered, { id: `att${Date.now()}`, date, groupId: group?.id, coachId, records }];
     });
     alert("✅ تم حفظ الحضور");
@@ -4146,6 +4181,10 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
   const totalPast = subDetails.attendedCount + subDetails.absentCount + subDetails.excusedCount;
   const computedAttendancePct = totalPast > 0 ? Math.round((subDetails.attendedCount / totalPast) * 100) : 100;
 
+  const childSubPays = (childPays || []).filter(pay => pay.type === "subscription");
+  const sortedChildPays = [...childSubPays].sort((a, b) => b.date.localeCompare(a.date));
+  const latestRenewalDate = sortedChildPays.length > 0 ? formatArabicDate(sortedChildPays[0].date) : "تجديد تلقائي عند التسجيل";
+
   // Next / Upcoming training logic
   const childTrainings = (trainings || []).filter(tr => tr.groupId === child.groupId && isTrainingActive(tr));
   const currentDayAr = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"][new Date().getDay()];
@@ -4348,6 +4387,11 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
       <Card t={t} style={{ padding: 24, borderRadius: 20 }}>
         <div style={{ fontWeight: 800, fontSize: 15, color: t.text, marginBottom: 18, display: "flex", alignItems: "center", gap: 8 }}>
           <span>📅</span> تفاصيل اشتراك وتحضير الابن (الدورة {subDetails.cycleIndex})
+        </div>
+
+        <div style={{ display: "flex", gap: 16, marginBottom: 16, fontSize: 12, color: t.textDim, flexWrap: "wrap", borderBottom: `1px solid ${t.border}`, paddingBottom: 12 }}>
+          <span>📅 <strong>تاريخ التسجيل:</strong> {formatArabicDate(child.joinDate)}</span>
+          <span>🔄 <strong>آخر تجديد اشتراك:</strong> {latestRenewalDate}</span>
         </div>
         
         <div style={{ display: "flex", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
