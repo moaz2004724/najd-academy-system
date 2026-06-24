@@ -105,7 +105,8 @@ const getGroupScheduledDates = (groupId, trainings, daysBack = 45, daysForward =
 };
 
 const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) => {
-  if (!player || !player.groupId || !player.joinDate) {
+  const joinDate = player ? (player.joinDate || getLocalDateString(new Date())) : "";
+  if (!player || !player.groupId || !joinDate) {
     return {
       cycleSessions: [],
       attendedCount: 0,
@@ -119,7 +120,7 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
     };
   }
 
-  const playerSubPays = (payments || []).filter(pay => pay.playerId === player.id && pay.type === "subscription");
+  const playerSubPays = (payments || []).filter(pay => String(pay.playerId) === String(player.id) && pay.type === "subscription");
   const P = playerSubPays.length;
 
   if (P === 0) {
@@ -249,8 +250,11 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
     let status = "حاضر";
     if (!isFuture) {
       const record = (attendance || []).find(a => compareDates(a.date, dateStr) && a.groupId === player.groupId);
-      if (record && record.records && record.records[player.id]) {
-        status = record.records[player.id];
+      if (record && record.records) {
+        const playerRecKey = Object.keys(record.records).find(k => String(k) === String(player.id));
+        if (playerRecKey) {
+          status = record.records[playerRecKey];
+        }
       }
     } else {
       status = "قادم";
@@ -2072,8 +2076,12 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
     const totalPast = subDetails.attendedCount + subDetails.absentCount + subDetails.excusedCount;
     const computedAttendancePct = totalPast > 0 ? Math.round((subDetails.attendedCount / totalPast) * 100) : 100;
 
-    const playerPays = (payments || []).filter(pay => pay.playerId === p.id && pay.type === "subscription");
-    const sortedPays = [...playerPays].sort((a, b) => b.date.localeCompare(a.date));
+    const playerPays = (payments || []).filter(pay => String(pay.playerId) === String(p.id) && pay.type === "subscription");
+    const sortedPays = [...playerPays].sort((a, b) => {
+      const da = typeof a.date === "string" ? a.date.substring(0, 10) : getLocalDateString(a.date);
+      const db = typeof b.date === "string" ? b.date.substring(0, 10) : getLocalDateString(b.date);
+      return db.localeCompare(da);
+    });
     const latestRenewalDate = sortedPays.length > 0 ? formatArabicDate(sortedPays[0].date) : "تجديد تلقائي عند التسجيل";
 
     const lastEval = (evals || []).filter(e => e.playerId === p.id).slice(-1)[0];
@@ -3957,8 +3965,12 @@ function CoachPlayers({ myPlayers, group, evals, t, trainings, attendance, payme
     const totalPast = subDetails.attendedCount + subDetails.absentCount + subDetails.excusedCount;
     const computedAttendancePct = totalPast > 0 ? Math.round((subDetails.attendedCount / totalPast) * 100) : 100;
 
-    const playerPays = (payments || []).filter(pay => pay.playerId === p.id && pay.type === "subscription");
-    const sortedPays = [...playerPays].sort((a, b) => b.date.localeCompare(a.date));
+    const playerPays = (payments || []).filter(pay => String(pay.playerId) === String(p.id) && pay.type === "subscription");
+    const sortedPays = [...playerPays].sort((a, b) => {
+      const da = typeof a.date === "string" ? a.date.substring(0, 10) : getLocalDateString(a.date);
+      const db = typeof b.date === "string" ? b.date.substring(0, 10) : getLocalDateString(b.date);
+      return db.localeCompare(da);
+    });
     const latestRenewalDate = sortedPays.length > 0 ? formatArabicDate(sortedPays[0].date) : "تجديد تلقائي عند التسجيل";
     return (
       <div>
@@ -4358,7 +4370,7 @@ function ParentPortal({ user, onLogout, players, groups, coaches, parents, payme
   const child      = myPlayers.find(p => p.id === activeChild) || myPlayers[0];
   const childGroup = child ? groups.find(g => g.id === child.groupId) : null;
   const childCoach = childGroup ? coaches.find(c => c.id === childGroup.coachId) : null;
-  const childPays  = child ? payments.filter(p => p.playerId === child.id) : [];
+  const childPays  = child ? payments.filter(p => String(p.playerId) === String(child.id)) : [];
   const childAtt   = child ? attendance.filter(a => a.groupId === child.groupId) : [];
   const childEvals = child ? evals.filter(e => e.playerId === child.id) : [];
 
@@ -4391,7 +4403,7 @@ function ParentPortal({ user, onLogout, players, groups, coaches, parents, payme
       )}
       {tab === "overview"   && <ParentOverview child={child} childGroup={childGroup} childCoach={childCoach} childPays={childPays} childEvals={childEvals} prices={prices} trainings={trainings} coaches={coaches} t={t} attendance={attendance}/>}
       {tab === "scores"     && <ParentScores child={child} childEvals={childEvals} childCoach={childCoach} t={t}/>}
-      {tab === "attendance" && <ParentAttendance child={child} childAtt={childAtt} t={t}/>}
+      {tab === "attendance" && <ParentAttendance child={child} childAtt={childAtt} childPays={childPays} t={t}/>}
       {tab === "payments"   && <ParentPayments child={child} childPays={childPays} prices={prices} t={t}/>}
       {tab === "schedule"   && <ParentSchedule childGroup={childGroup} childCoach={childCoach} trainings={trainings} t={t}/>}
       {tab === "messages"   && <Messaging messages={messages} setMessages={setMessages} meId={user.id} meName={parent.name} coaches={coaches} parents={parents} t={t} role="parent" myCoachIds={myCoachIds} />}
@@ -4412,7 +4424,11 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
   const computedAttendancePct = totalPast > 0 ? Math.round((subDetails.attendedCount / totalPast) * 100) : 100;
 
   const childSubPays = (childPays || []).filter(pay => pay.type === "subscription");
-  const sortedChildPays = [...childSubPays].sort((a, b) => b.date.localeCompare(a.date));
+  const sortedChildPays = [...childSubPays].sort((a, b) => {
+    const da = typeof a.date === "string" ? a.date.substring(0, 10) : getLocalDateString(a.date);
+    const db = typeof b.date === "string" ? b.date.substring(0, 10) : getLocalDateString(b.date);
+    return db.localeCompare(da);
+  });
   const latestRenewalDate = sortedChildPays.length > 0 ? formatArabicDate(sortedChildPays[0].date) : "تجديد تلقائي عند التسجيل";
 
   // Next / Upcoming training logic
@@ -4826,8 +4842,28 @@ function ParentScores({ child, childEvals, childCoach, t }) {
   );
 }
 
-function ParentAttendance({ child, childAtt, t }) {
-  const allRecords = childAtt.flatMap(a => Object.entries(a.records).filter(([pid]) => pid === child?.id).map(([, s]) => ({ date: a.date, status: s })));
+function ParentAttendance({ child, childAtt, childPays, t }) {
+  // Find the first subscription payment date
+  const childSubPays = (childPays || []).filter(pay => pay.type === "subscription");
+  const sortedSubPays = [...childSubPays].sort((a, b) => {
+    const da = typeof a.date === "string" ? a.date.substring(0, 10) : getLocalDateString(a.date);
+    const db = typeof b.date === "string" ? b.date.substring(0, 10) : getLocalDateString(b.date);
+    return da.localeCompare(db);
+  });
+  const firstSubDate = sortedSubPays[0]
+    ? (typeof sortedSubPays[0].date === "string" ? sortedSubPays[0].date.substring(0, 10) : getLocalDateString(sortedSubPays[0].date))
+    : "";
+
+  const allRecords = childAtt.flatMap(a => {
+    const aDateStr = typeof a.date === "string" ? a.date.substring(0, 10) : getLocalDateString(a.date);
+    // Ignore attendance records before the child's subscription start date
+    if (firstSubDate && aDateStr < firstSubDate) {
+      return [];
+    }
+    return Object.entries(a.records)
+      .filter(([pid]) => String(pid) === String(child?.id))
+      .map(([, s]) => ({ date: aDateStr, status: s }));
+  });
   const present = allRecords.filter(r => r.status === "حاضر").length;
   const absent  = allRecords.filter(r => r.status === "غائب").length;
   const excuse  = allRecords.filter(r => r.status === "بعذر").length;
@@ -4845,7 +4881,7 @@ function ParentAttendance({ child, childAtt, t }) {
           ? <div style={{ padding: 40, textAlign: "center", color: t.textFaint }}>لا يوجد سجل حضور بعد</div>
           : allRecords.slice().reverse().map((r, i) => (
             <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 18px", borderBottom: `1px solid ${t.border}` }}>
-              <span style={{ fontSize: 13, color: t.text }}>{r.date}</span>
+              <span style={{ fontSize: 13, color: t.text }}>{formatArabicDate(r.date)} ({r.date})</span>
               <Chip text={r.status} color={ATT_C[r.status]}/>
             </div>
           ))
