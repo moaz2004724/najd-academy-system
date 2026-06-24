@@ -163,7 +163,11 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
   const ARABIC_DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
   // Sort sub payments chronologically
-  const sortedSubPays = [...playerSubPays].sort((a, b) => a.date.localeCompare(b.date));
+  const sortedSubPays = [...playerSubPays].sort((a, b) => {
+    const da = typeof a.date === "string" ? a.date.substring(0, 10) : getLocalDateString(a.date);
+    const db = typeof b.date === "string" ? b.date.substring(0, 10) : getLocalDateString(b.date);
+    return da.localeCompare(db);
+  });
 
   const cycles = [];
   let lastCycleEndDate = null;
@@ -171,7 +175,7 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
 
   for (let c = 1; c <= P; c++) {
     const pay = sortedSubPays[c - 1];
-    let startDateStr = pay.date;
+    let startDateStr = typeof pay.date === "string" ? pay.date.substring(0, 10) : getLocalDateString(pay.date);
     
     if (lastCycleEndDate) {
       if (startDateStr < lastCycleEndDate) {
@@ -208,10 +212,10 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
 
   // The active cycle is the P-th cycle
   const currentCycle = cycles[P - 1];
-  const lastSessionDate = currentCycle.sessions[11];
+  const lastSessionDate = currentCycle ? (currentCycle.sessions[currentCycle.sessions.length - 1] || "") : "";
   
   // A cycle is expired if its last session is already in the past (strictly <= todayStr)
-  const isExpired = lastSessionDate <= todayStr;
+  const isExpired = lastSessionDate ? lastSessionDate <= todayStr : false;
   
   // Let's populate cycleSessions details for the active cycle P
   const cycleSessions = [];
