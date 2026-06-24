@@ -137,16 +137,9 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
   }
 
   const groupTrainings = (trainings || []).filter(tr => tr.groupId === player.groupId);
-  const trainingDays = [];
-  groupTrainings.forEach(tr => {
-    if (tr.days && Array.isArray(tr.days)) {
-      tr.days.forEach(d => {
-        if (!trainingDays.includes(d)) trainingDays.push(d);
-      });
-    }
-  });
+  const groupAttendance = (attendance || []).filter(a => a.groupId === player.groupId);
 
-  if (trainingDays.length === 0) {
+  if (groupTrainings.length === 0 && groupAttendance.length === 0) {
     return {
       cycleSessions: [],
       attendedCount: 0,
@@ -161,6 +154,38 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
   }
 
   const ARABIC_DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+
+  const isGroupTrainingDay = (dateObj, dateStr) => {
+    // 1. Check if attendance was recorded for this group on this date
+    if (groupAttendance.some(a => compareDates(a.date, dateStr))) {
+      return true;
+    }
+    
+    // 2. Check current training schedules
+    for (const tr of groupTrainings) {
+      if (tr.isRecurring === false || tr.isRecurring === undefined) {
+        if (tr.date && compareDates(tr.date, dateStr)) {
+          return true;
+        }
+      } else {
+        const dayName = ARABIC_DAYS[dateObj.getDay()];
+        if (tr.days && tr.days.includes(dayName)) {
+          // Parse creation date from tr.id if it's a client-side timestamp (e.g. tr17818...)
+          let createdDateStr = null;
+          if (tr.id && tr.id.startsWith("tr")) {
+            const ts = parseInt(tr.id.substring(2));
+            if (!isNaN(ts)) {
+              createdDateStr = getLocalDateString(new Date(ts));
+            }
+          }
+          if (!createdDateStr || dateStr >= createdDateStr) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  };
 
   // Sort sub payments chronologically
   const sortedSubPays = [...playerSubPays].sort((a, b) => {
@@ -196,9 +221,9 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
     let safety = 0;
     while (cycleDates.length < 12 && safety < 5000) {
       safety++;
-      const dayName = ARABIC_DAYS[current.getDay()];
-      if (trainingDays.includes(dayName)) {
-        cycleDates.push(getLocalDateString(current));
+      const dateStr = getLocalDateString(current);
+      if (isGroupTrainingDay(current, dateStr)) {
+        cycleDates.push(dateStr);
       }
       current.setDate(current.getDate() + 1);
     }
@@ -214,8 +239,8 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
   const currentCycle = cycles[P - 1];
   const lastSessionDate = currentCycle ? (currentCycle.sessions[currentCycle.sessions.length - 1] || "") : "";
   
-  // A cycle is expired if its last session is already in the past (strictly <= todayStr)
-  const isExpired = lastSessionDate ? lastSessionDate <= todayStr : false;
+  // A cycle is expired if its last session is already in the past (strictly < todayStr)
+  const isExpired = lastSessionDate ? lastSessionDate < todayStr : false;
   
   // Let's populate cycleSessions details for the active cycle P
   const cycleSessions = [];
@@ -2273,7 +2298,7 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
                     {subDetails.isUnpaid ? (
                       <span style={{ fontSize: 11, fontWeight: 800, color: "#EF4444", background: "rgba(239,68,68,0.1)", padding: "3px 8px", borderRadius: 6 }}>⚠️ غير مسدد</span>
                     ) : subDetails.isExpired ? (
-                      <span style={{ fontSize: 11, fontWeight: 800, color: "#EF4444", background: "rgba(239,68,68,0.1)", padding: "3px 8px", borderRadius: 6 }}>⚠️ منتهي</span>
+                      <span style={{ fontSize: 11, fontWeight: 800, color: "#F59E0B", background: "rgba(245,158,11,0.1)", padding: "3px 8px", borderRadius: 6 }}>⚠️ منتهي ({subDetails.attendedCount} / 12)</span>
                     ) : (
                       <span style={{ fontSize: 12, fontWeight: 700, color: "#10B981" }}>{subDetails.attendedCount} / 12</span>
                     )}
@@ -3560,7 +3585,7 @@ function AdminAttendance({ groups, players, coaches, attendance, setAttendance, 
                   </span>
                 ) : subTab === "players" && subDetails.isExpired ? (
                   <span style={{ fontSize: 11, color: "#EF4444", fontWeight: 800, background: "rgba(239,68,68,0.1)", padding: "6px 12px", borderRadius: 8 }}>
-                    ⚠️ منتهي الاشتراك (12/12)
+                    ⚠️ منتهي الاشتراك ({subDetails.attendedCount}/12)
                   </span>
                 ) : (
                   <div style={{ display: "flex", gap: 6 }}>
@@ -4077,7 +4102,7 @@ function CoachPlayers({ myPlayers, group, evals, t, trainings, attendance, payme
     <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(220px,1fr))", gap: 14 }}>
       {myPlayers.map(p => {
         const subDetails = getPlayerSubscriptionDetails(p, trainings, attendance, payments);
-        const subText = subDetails.isUnpaid ? "غير مسدد" : subDetails.isExpired ? "منتهي" : `${subDetails.attendedCount} / 12`;
+        const subText = subDetails.isUnpaid ? "غير مسدد" : subDetails.isExpired ? `منتهي (${subDetails.attendedCount} / 12)` : `${subDetails.attendedCount} / 12`;
         return (
           <Card key={p.id} hover t={t} style={{ padding: 20, cursor: "pointer" }} onClick={() => setSel(p.id)}>
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -4177,7 +4202,7 @@ function CoachAttendance({ coachId, group, myPlayers, attendance, setAttendance,
                 </span>
               ) : subDetails.isExpired ? (
                 <span style={{ fontSize: 11, color: "#EF4444", fontWeight: 800, background: "rgba(239,68,68,0.1)", padding: "6px 12px", borderRadius: 8 }}>
-                  ⚠️ منتهي الاشتراك (12/12)
+                  ⚠️ منتهي الاشتراك ({subDetails.attendedCount}/12)
                 </span>
               ) : (
                 <div style={{ display: "flex", gap: 7 }}>
