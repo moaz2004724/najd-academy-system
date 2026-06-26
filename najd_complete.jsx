@@ -157,6 +157,24 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
   const ARABIC_DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
   const isGroupTrainingDay = (dateObj, dateStr) => {
+    const dayName = ARABIC_DAYS[dateObj.getDay()];
+    
+    // Match days should not count towards subscription training sessions
+    const isMatchDay = groupTrainings.some(tr => {
+      if (tr.type === "match") {
+        if (tr.isRecurring === false || tr.isRecurring === undefined) {
+          return tr.date && compareDates(tr.date, dateStr);
+        } else {
+          return tr.days && tr.days.includes(dayName);
+        }
+      }
+      return false;
+    });
+
+    if (isMatchDay) {
+      return false;
+    }
+
     // 1. Check if attendance was recorded for this group on this date
     if (groupAttendance.some(a => compareDates(a.date, dateStr))) {
       return true;
@@ -164,12 +182,13 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
     
     // 2. Check current training schedules
     for (const tr of groupTrainings) {
+      if (tr.type === "match") continue;
+      
       if (tr.isRecurring === false || tr.isRecurring === undefined) {
         if (tr.date && compareDates(tr.date, dateStr)) {
           return true;
         }
       } else {
-        const dayName = ARABIC_DAYS[dateObj.getDay()];
         if (tr.days && tr.days.includes(dayName)) {
           // Parse creation date from tr.id if it's a client-side timestamp (e.g. tr17818...)
           let createdDateStr = null;
