@@ -1697,7 +1697,7 @@ function AdminTeams({ groups, setGroups, coaches, players, t }) {
   const [modal, setModal]   = useState(null);
   const [form, setForm]     = useState({ name: "", coachId: "", color: "#06B6D4" });
   const [selGroup, setSelGroup] = useState(null);
-  const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"];
+  const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
   const save = () => {
     if (!form.name.trim()) return;
@@ -3023,7 +3023,7 @@ function AdminTrainings({ trainings, setTrainings, groups, coaches, t }) {
     isFriendly: false
   };
   const [form, setForm] = useState(empty);
-  const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"];
+  const DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
 
   const save = () => {
     if (!form.groupId) {
