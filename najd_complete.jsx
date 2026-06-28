@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import * as XLSX from "xlsx";
 import logoImg from "./logo.png";
-import bgImg from "./خلفية.png";
+import bgImg from "./خلفية.webp";
 
 /* ═══ SETTINGS ════════════════════════════════════════ */
 const API_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) || (
@@ -937,7 +937,7 @@ function LoginPage({ onLogin, players = [], coaches = [], t }) {
       display: "flex", 
       alignItems: "center", 
       justifyContent: "center", 
-      backgroundImage: `linear-gradient(135deg, rgba(8, 7, 26, 0.72) 0%, rgba(12, 11, 24, 0.92) 100%), url(${bgImg})`, 
+      backgroundImage: `linear-gradient(135deg, rgba(8, 7, 26, 0.42) 0%, rgba(12, 11, 24, 0.65) 100%), url(${bgImg})`, 
       backgroundSize: "cover", 
       backgroundPosition: "center", 
       backgroundRepeat: "no-repeat", 
@@ -974,11 +974,15 @@ function LoginPage({ onLogin, players = [], coaches = [], t }) {
       <div style={{ position: "relative", zIndex: 1, width: "min(440px,100%)" }}>
         {/* Logo & Title */}
         <div style={{ textAlign: "center", marginBottom: 30, animation: "fadeUp .6s ease both" }}>
-          <div style={{ marginBottom: 12 }}>
+          <div style={{ marginBottom: 16 }}>
             <img src={logoImg} alt="نادي نجد" style={{ width: 110, height: 110, objectFit: "contain" }} />
           </div>
 
-          {/* Animated Slogan under the logo */}
+          <h1 style={{ fontSize: 32, fontWeight: 900, color: "#fff", marginBottom: 8, letterSpacing: "-.02em" }}>
+            نادي <span style={{ color: "#D8A435" }}>نجد</span> الرياض
+          </h1>
+
+          {/* Animated Slogan under the club name */}
           <div style={{ 
             display: "flex", 
             gap: "8px", 
@@ -988,19 +992,14 @@ function LoginPage({ onLogin, players = [], coaches = [], t }) {
             color: "#D8A435", 
             textShadow: "0 0 15px rgba(216, 164, 53, 0.45)",
             direction: "rtl", 
-            marginTop: 8, 
-            marginBottom: 20, 
+            marginTop: 10, 
+            marginBottom: 10, 
             height: 30 
           }}>
             <span style={{ animation: "wordSlogan1 4.5s infinite ease-in-out" }}>نجد</span>
             <span style={{ animation: "wordSlogan2 4.5s infinite ease-in-out" }}>سارعي</span>
             <span style={{ animation: "wordSlogan3 4.5s infinite ease-in-out" }}>للمجد</span>
           </div>
-
-          <h1 style={{ fontSize: 32, fontWeight: 900, color: "#fff", marginBottom: 8, letterSpacing: "-.02em" }}>
-            نادي <span style={{ color: "#D8A435" }}>نجد</span> الرياض
-          </h1>
-          <p style={{ fontSize: 13, color: "#9E90CF", fontWeight: 600, letterSpacing: ".02em" }}>أكاديمية كرة القدم — نظام الإدارة المتكامل</p>
         </div>
 
         {/* Login Card */}
