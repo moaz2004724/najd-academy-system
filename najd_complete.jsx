@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import * as XLSX from "xlsx";
 import logoImg from "./logo.png";
+import bgImg from "./خلفية.png";
 
 /* ═══ SETTINGS ════════════════════════════════════════ */
 const API_URL = (typeof import.meta !== 'undefined' && import.meta.env && import.meta.env.VITE_API_URL) || (
@@ -931,30 +932,79 @@ function LoginPage({ onLogin, players = [], coaches = [], t }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#08071A", position: "relative", overflow: "hidden", padding: 20 }}>
+    <div style={{ 
+      minHeight: "100vh", 
+      display: "flex", 
+      alignItems: "center", 
+      justifyContent: "center", 
+      backgroundImage: `linear-gradient(135deg, rgba(8, 7, 26, 0.72) 0%, rgba(12, 11, 24, 0.92) 100%), url(${bgImg})`, 
+      backgroundSize: "cover", 
+      backgroundPosition: "center", 
+      backgroundRepeat: "no-repeat", 
+      position: "relative", 
+      overflow: "hidden", 
+      padding: 20 
+    }}>
+      <style>{`
+        @keyframes wordSlogan1 {
+          0%, 8% { opacity: 0; transform: translateY(5px); }
+          12%, 80% { opacity: 1; transform: translateY(0); }
+          84%, 100% { opacity: 0; transform: translateY(-5px); }
+        }
+        @keyframes wordSlogan2 {
+          0%, 30% { opacity: 0; transform: translateY(5px); }
+          34%, 80% { opacity: 1; transform: translateY(0); }
+          84%, 100% { opacity: 0; transform: translateY(-5px); }
+        }
+        @keyframes wordSlogan3 {
+          0%, 54% { opacity: 0; transform: translateY(5px); }
+          58%, 80% { opacity: 1; transform: translateY(0); }
+          84%, 100% { opacity: 0; transform: translateY(-5px); }
+        }
+      `}</style>
+
       {/* Background effects */}
-      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 55% at 50% 20%,rgba(124,73,168,.18) 0%,transparent 70%)" }} />
-      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 60% 50% at 50% 85%,rgba(216,164,53,.08) 0%,transparent 60%)" }} />
-      <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(124,73,168,.03) 1px,transparent 1px),linear-gradient(90deg,rgba(124,73,168,.03) 1px,transparent 1px)", backgroundSize: "60px 60px" }} />
-      <div style={{ position: "absolute", top: "12%", right: "10%", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle,rgba(216,164,53,.06),transparent 70%)", animation: "float 8s ease-in-out infinite" }} />
-      <div style={{ position: "absolute", bottom: "10%", left: "8%", width: 220, height: 220, borderRadius: "50%", background: "radial-gradient(circle,rgba(124,73,168,.08),transparent 70%)", animation: "float 6s ease-in-out infinite 2s" }} />
-      <div style={{ position: "absolute", top: "50%", left: "50%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle,rgba(124,73,168,.04),transparent 60%)", transform: "translate(-50%,-50%)", animation: "pulse 4s ease-in-out infinite" }} />
+      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 80% 55% at 50% 20%,rgba(124,73,168,.12) 0%,transparent 70%)" }} />
+      <div style={{ position: "absolute", inset: 0, background: "radial-gradient(ellipse 60% 50% at 50% 85%,rgba(216,164,53,.06) 0%,transparent 60%)" }} />
+      <div style={{ position: "absolute", inset: 0, backgroundImage: "linear-gradient(rgba(124,73,168,.02) 1px,transparent 1px),linear-gradient(90deg,rgba(124,73,168,.02) 1px,transparent 1px)", backgroundSize: "60px 60px" }} />
+      <div style={{ position: "absolute", top: "12%", right: "10%", width: 300, height: 300, borderRadius: "50%", background: "radial-gradient(circle,rgba(216,164,53,.04),transparent 70%)", animation: "float 8s ease-in-out infinite" }} />
+      <div style={{ position: "absolute", bottom: "10%", left: "8%", width: 220, height: 220, borderRadius: "50%", background: "radial-gradient(circle,rgba(124,73,168,.05),transparent 70%)", animation: "float 6s ease-in-out infinite 2s" }} />
+      <div style={{ position: "absolute", top: "50%", left: "50%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle,rgba(124,73,168,.02),transparent 60%)", transform: "translate(-50%,-50%)", animation: "pulse 4s ease-in-out infinite" }} />
 
       <div style={{ position: "relative", zIndex: 1, width: "min(440px,100%)" }}>
         {/* Logo & Title */}
-        <div style={{ textAlign: "center", marginBottom: 36, animation: "fadeUp .6s ease both" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 120, height: 120, borderRadius: 32, background: "linear-gradient(135deg,rgba(124,73,168,.14),rgba(216,164,53,.06))", border: "1px solid rgba(124,73,168,.25)", marginBottom: 18, boxShadow: "0 0 50px rgba(124,73,168,.15), 0 0 100px rgba(216,164,53,.05)", position: "relative" }}>
-            <NajdLogo size={90} />
-            <div style={{ position: "absolute", inset: -1, borderRadius: 32, background: "conic-gradient(from 0deg, transparent 0%, rgba(124,73,168,.15) 25%, transparent 50%, rgba(216,164,53,.1) 75%, transparent 100%)", animation: "spin 8s linear infinite", pointerEvents: "none" }} />
+        <div style={{ textAlign: "center", marginBottom: 30, animation: "fadeUp .6s ease both" }}>
+          <div style={{ marginBottom: 12 }}>
+            <img src={logoImg} alt="نادي نجد" style={{ width: 110, height: 110, objectFit: "contain" }} />
           </div>
-          <h1 style={{ fontSize: 34, fontWeight: 900, color: "#fff", marginBottom: 8, letterSpacing: "-.02em" }}>
+
+          {/* Animated Slogan under the logo */}
+          <div style={{ 
+            display: "flex", 
+            gap: "8px", 
+            justifyContent: "center", 
+            fontSize: 20, 
+            fontWeight: 800, 
+            color: "#D8A435", 
+            textShadow: "0 0 15px rgba(216, 164, 53, 0.45)",
+            direction: "rtl", 
+            marginTop: 8, 
+            marginBottom: 20, 
+            height: 30 
+          }}>
+            <span style={{ animation: "wordSlogan1 4.5s infinite ease-in-out" }}>نجد</span>
+            <span style={{ animation: "wordSlogan2 4.5s infinite ease-in-out" }}>سارعي</span>
+            <span style={{ animation: "wordSlogan3 4.5s infinite ease-in-out" }}>للمجد</span>
+          </div>
+
+          <h1 style={{ fontSize: 32, fontWeight: 900, color: "#fff", marginBottom: 8, letterSpacing: "-.02em" }}>
             نادي <span style={{ color: "#D8A435" }}>نجد</span> الرياض
           </h1>
-          <p style={{ fontSize: 13, color: "#6B5CA5", fontWeight: 600, letterSpacing: ".02em" }}>أكاديمية كرة القدم — نظام الإدارة المتكامل</p>
+          <p style={{ fontSize: 13, color: "#9E90CF", fontWeight: 600, letterSpacing: ".02em" }}>أكاديمية كرة القدم — نظام الإدارة المتكامل</p>
         </div>
 
         {/* Login Card */}
-        <div style={{ background: "rgba(18,17,31,.92)", border: "1px solid rgba(124,73,168,.18)", borderRadius: 28, padding: "36px 30px 30px", backdropFilter: "blur(24px)", animation: "fadeUp .6s .15s ease both", opacity: 0, boxShadow: "0 20px 60px rgba(0,0,0,.4), 0 0 0 1px rgba(124,73,168,.08)" }}>
+        <div style={{ background: "rgba(18,17,31,.82)", border: "1px solid rgba(124,73,168,.18)", borderRadius: 28, padding: "36px 30px 30px", backdropFilter: "blur(24px)", animation: "fadeUp .6s .15s ease both", opacity: 0, boxShadow: "0 20px 60px rgba(0,0,0,.4), 0 0 0 1px rgba(124,73,168,.08)" }}>
           <div style={{ textAlign: "center", marginBottom: 24 }}>
             <div style={{ fontSize: 16, fontWeight: 800, color: "#E8E3FF", marginBottom: 4 }}>تسجيل الدخول</div>
             <div style={{ fontSize: 11, color: "#5A4E8A" }}>أدخل بيانات حسابك للوصول إلى النظام</div>
@@ -1009,7 +1059,12 @@ function LoginPage({ onLogin, players = [], coaches = [], t }) {
           </div>
         </div>
 
-        <Footer t={t} />
+        {/* Custom footer styled for the login background */}
+        <div style={{ textAlign: "center", marginTop: 24, fontSize: 11, color: "rgba(255, 255, 255, 0.45)", opacity: 0.8, borderTop: "1px solid rgba(255, 255, 255, 0.08)", paddingTop: 16 }}>
+          <div>تم تطوير نظام إدارة الأكاديميات والنوادي الرياضية <span style={{ color: "#9c6fd6", fontWeight: 700 }}>" مُحْـكَـم (Mohkam) "</span></div>
+          <div style={{ marginTop: 4 }}>بواسطة <span style={{ fontWeight: 600 }}>Badawi for Software Solutions and Marketing</span></div>
+          <div style={{ marginTop: 4, direction: "ltr" }}>+201091089983</div>
+        </div>
       </div>
     </div>
   );
