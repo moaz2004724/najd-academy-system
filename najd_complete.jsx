@@ -591,6 +591,30 @@ const PAY_TYPES = {
 const ATT_C = { حاضر: "#10B981", غائب: "#EF4444", بعذر: "#F59E0B" };
 const fmtMoney = n => Number(n).toLocaleString("ar-SA") + " ر.س";
 
+const parseExpenseNote = (expense) => {
+  if (!expense || !expense.note) {
+    return {
+      items: expense ? [{ name: expense.item, qty: 1, price: expense.amount }] : [],
+      note: ""
+    };
+  }
+  try {
+    const parsed = JSON.parse(expense.note);
+    if (parsed && Array.isArray(parsed.items)) {
+      return {
+        items: parsed.items,
+        note: parsed.note || ""
+      };
+    }
+  } catch (e) {
+    // Not JSON
+  }
+  return {
+    items: [{ name: expense.item, qty: 1, price: expense.amount }],
+    note: expense.note
+  };
+};
+
 /* ═══ DATE UTILS ══════════════════════════════════════ */
 const AR_MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"];
 const getCurMonth = () => {
@@ -2535,6 +2559,7 @@ const ACADEMY_WEBSITE = "https://najd-academy-system.vercel.app/";
 function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
   const invoiceRef = useRef(null);
   const isExpense = !!payment.purchaser;
+  const { items, note: parsedNote } = isExpense ? parseExpenseNote(payment) : { items: [], note: "" };
 
   // Collect all payments for the same player in the same month
   const relatedPayments = isExpense ? [payment] : (allPayments || []).filter(
@@ -2755,10 +2780,10 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
                   <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>الشهر المالي</div>
                   <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{payment.month}</div>
                 </div>
-                {payment.note && (
+                {((isExpense && parsedNote) || (!isExpense && payment.note)) && (
                   <div style={{ gridColumn: 'span 2' }}>
                     <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>الملاحظات</div>
-                    <div style={{ fontSize: 12, color: '#555' }}>{payment.note}</div>
+                    <div style={{ fontSize: 12, color: '#555' }}>{isExpense ? parsedNote : payment.note}</div>
                   </div>
                 )}
               </div>
@@ -2821,12 +2846,14 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
               </thead>
               <tbody>
                 {isExpense ? (
-                  <tr style={{ background: '#fff', borderBottom: '1px solid #ede9f9' }}>
-                    <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 700, color: '#666', width: 36 }}>1</td>
-                    <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{payment.item}</td>
-                    <td style={{ padding: '11px 14px', fontSize: 11, color: '#777' }}>{payment.purchaser}</td>
-                    <td style={{ padding: '11px 14px', fontSize: 14, fontWeight: 900, color: '#7C3AED', textAlign: 'left' }}>{fmtMoney(payment.amount)}</td>
-                  </tr>
+                  items.map((it, idx) => (
+                    <tr key={idx} style={{ background: idx % 2 === 0 ? '#fff' : '#fbf8ff', borderBottom: '1px solid #ede9f9' }}>
+                      <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 700, color: '#666', width: 36 }}>{idx + 1}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{it.name}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 11, color: '#777' }}>الكمية: {it.qty} × {fmtMoney(it.price)}</td>
+                      <td style={{ padding: '11px 14px', fontSize: 14, fontWeight: 900, color: '#7C3AED', textAlign: 'left' }}>{fmtMoney(it.qty * it.price)}</td>
+                    </tr>
+                  ))
                 ) : (
                   relatedPayments.map((p, idx) => {
                     const pt = PAY_TYPES[p.type];
@@ -3020,19 +3047,31 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
   };
 
   const saveExpense = () => {
-    if (!expForm.item.trim() || !expForm.purchaser.trim() || !expForm.amount) {
-      alert("الرجاء تعبئة الحقول الأساسية: الغرض، المبلغ، والقائم بالصرف.");
+    if (!expForm.item.trim() || !expForm.purchaser.trim()) {
+      alert("الرجاء تعبئة الحقول الأساسية: البيان العام والقائم بالصرف.");
       return;
     }
+    const validItems = (expForm.items || []).filter(it => it.name.trim() !== "");
+    if (validItems.length === 0) {
+      alert("الرجاء إضافة بند تفصيلي واحد على الأقل للمصروف.");
+      return;
+    }
+
+    const calculatedAmount = validItems.reduce((sum, it) => sum + (parseInt(it.qty) || 0) * (parseFloat(it.price) || 0), 0);
+    const serializedNote = JSON.stringify({
+      items: validItems,
+      note: (expForm.note || "").trim()
+    });
+
     const isEdit = !!expForm.id;
     const itemData = {
       id: isEdit ? expForm.id : `exp-${Date.now()}`,
       item: expForm.item.trim(),
-      amount: parseFloat(expForm.amount),
+      amount: calculatedAmount,
       purchaser: expForm.purchaser.trim(),
       date: expForm.date,
       month: expForm.month,
-      note: expForm.note?.trim() || ""
+      note: serializedNote
     };
 
     setExpenses(prev => {
@@ -3178,7 +3217,7 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
               ))}
             </div>
             <Btn onClick={() => {
-              setExpForm(emptyExpense);
+              setExpForm({ ...emptyExpense, items: [{ name: "", qty: 1, price: "" }] });
               setExpModal(true);
             }} style={{ background: "#EF4444", color: "#fff" }}>
               <AnimIcon type="plus" size={14} color="#fff"/> تسجيل مصروف
@@ -3202,7 +3241,7 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
                     <td style={{ padding: "11px 14px", fontSize: 12, color: t.text }}>{e.purchaser}</td>
                     <td style={{ padding: "11px 14px", fontSize: 11, color: t.textDim }}>{e.month}</td>
                     <td style={{ padding: "11px 14px", fontSize: 11, color: t.textDim }}>{e.date ? (typeof e.date === "string" ? e.date.substring(0, 10) : getLocalDateString(e.date)) : ""}</td>
-                    <td style={{ padding: "11px 14px", fontSize: 11, color: t.textDim }}>{e.note || "—"}</td>
+                    <td style={{ padding: "11px 14px", fontSize: 11, color: t.textDim }}>{parseExpenseNote(e).note || "—"}</td>
                     <td style={{ padding: "8px 14px" }}>
                       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                         <button
@@ -3219,7 +3258,12 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
                         </button>
                         <button
                           onClick={() => {
-                            setExpForm(e);
+                            const parsed = parseExpenseNote(e);
+                            setExpForm({
+                              ...e,
+                              items: parsed.items,
+                              note: parsed.note
+                            });
                             setExpModal(true);
                           }}
                           title="تعديل"
@@ -3319,11 +3363,81 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
       {/* ── Expenses Modal ── */}
       {expModal && (
         <Modal title={expForm.id ? "تعديل المصروف" : "تسجيل مصروف جديد للأكاديمية"} onClose={() => setExpModal(false)} t={t}>
-          <Input label="الغرض / البيان (مثال: طقم كور، إيجار ملعب...)" value={expForm.item} onChange={v => setExpForm(f => ({ ...f, item: v }))} placeholder="أدخل الغرض من المصروف" t={t}/>
-          
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Input label="المبلغ (ريال)" value={expForm.amount} onChange={v => setExpForm(f => ({ ...f, amount: v }))} type="number" placeholder="المبلغ بالريال" t={t}/>
+          <div style={{ display: "grid", gridTemplateColumns: "1.5fr 1fr", gap: 12 }}>
+            <Input label="البيان العام للمصروف" value={expForm.item} onChange={v => setExpForm(f => ({ ...f, item: v }))} placeholder="البيان العام (مثال: أدوات رياضية ومياه)" t={t}/>
             <Input label="من اللي جابه (القائم بالصرف)" value={expForm.purchaser} onChange={v => setExpForm(f => ({ ...f, purchaser: v }))} placeholder="اسم الشخص" t={t}/>
+          </div>
+
+          <div style={{ marginTop: 12, marginBottom: 12, borderTop: `1px solid ${t.border}`, paddingTop: 12 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: t.text, marginBottom: 8, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <span>📋 البنود التفصيلية للمصروف:</span>
+              <button 
+                type="button"
+                onClick={() => setExpForm(f => ({ ...f, items: [...(f.items || []), { name: "", qty: 1, price: "" }] }))}
+                style={{ padding: "4px 8px", background: "rgba(16,185,129,0.12)", color: "#10B981", border: "none", borderRadius: 6, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}
+              >
+                ➕ إضافة بند
+              </button>
+            </div>
+            
+            {((expForm.items && expForm.items.length > 0) ? expForm.items : [{ name: "", qty: 1, price: "" }]).map((it, idx) => (
+              <div key={idx} style={{ display: "grid", gridTemplateColumns: "2.5fr 1fr 1.2fr 35px", gap: 8, marginBottom: 8, alignItems: "center" }}>
+                <input 
+                  type="text" 
+                  value={it.name} 
+                  placeholder="اسم البند (مثل: كرتون مياه)" 
+                  onChange={v => {
+                    const next = [...(expForm.items || [])];
+                    next[idx].name = v.target.value;
+                    setExpForm(f => ({ ...f, items: next }));
+                  }}
+                  style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${t.border}`, background: t.bg2, color: t.text, fontSize: 12, fontFamily: "'Cairo',sans-serif" }}
+                />
+                <input 
+                  type="number" 
+                  value={it.qty} 
+                  placeholder="الكمية" 
+                  onChange={v => {
+                    const next = [...(expForm.items || [])];
+                    next[idx].qty = parseInt(v.target.value) || 0;
+                    setExpForm(f => ({ ...f, items: next }));
+                  }}
+                  style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${t.border}`, background: t.bg2, color: t.text, fontSize: 12, fontFamily: "'Cairo',sans-serif" }}
+                />
+                <input 
+                  type="number" 
+                  value={it.price} 
+                  placeholder="سعر الوحدة" 
+                  onChange={v => {
+                    const next = [...(expForm.items || [])];
+                    next[idx].price = parseFloat(v.target.value) || 0;
+                    setExpForm(f => ({ ...f, items: next }));
+                  }}
+                  style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${t.border}`, background: t.bg2, color: t.text, fontSize: 12, fontFamily: "'Cairo',sans-serif" }}
+                />
+                <button 
+                  type="button"
+                  disabled={(expForm.items || []).length <= 1}
+                  onClick={() => {
+                    const next = (expForm.items || []).filter((_, i) => i !== idx);
+                    setExpForm(f => ({ ...f, items: next }));
+                  }}
+                  style={{ height: 32, display: "grid", placeItems: "center", background: "rgba(239,68,68,0.12)", color: "#EF4444", border: "none", borderRadius: 6, cursor: "pointer", fontSize: 12 }}
+                >
+                  🗑️
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background: t.bg, borderRadius: 12, padding: "14px", marginBottom: 12, border: `1px dashed ${t.border}` }}>
+            <div style={{ fontSize: 11, color: t.textDim, marginBottom: 4 }}>إجمالي مبلغ المصروف:</div>
+            <div style={{ color: "#EF4444", fontWeight: 900, fontSize: 20 }}>
+              {fmtMoney(
+                ((expForm.items && expForm.items.length > 0) ? expForm.items : [])
+                  .reduce((sum, it) => sum + (parseInt(it.qty) || 0) * (parseFloat(it.price) || 0), 0)
+              )}
+            </div>
           </div>
           
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
