@@ -1562,26 +1562,33 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
   ];
   return (
     <Shell title="لوحة الإدارة" subtitle="نادي نجد الرياض" color="#7C49A8" icon="dashboard" tabs={tabs} activeTab={tab} setActiveTab={setTab} onLogout={onLogout} badge="مدير عام" user={user} t={t} syncStatus={syncStatus}>
-      {tab === "overview"  && <AdminOverview players={players} coaches={coaches} groups={groups} payments={payments} attendance={attendance} t={t} />}
-      {tab === "teams"     && <AdminTeams groups={groups} setGroups={setGroups} coaches={coaches} players={players} t={t} />}
+      {tab === "overview"  && <AdminOverview players={players} coaches={coaches} groups={groups} payments={payments} attendance={attendance} t={t} trainings={trainings} />}
+      {tab === "teams"     && <AdminTeams groups={groups} setGroups={setGroups} coaches={coaches} players={players} t={t} trainings={trainings} attendance={attendance} payments={payments} />}
       {tab === "attendance" && <AdminAttendance groups={groups} players={players} coaches={coaches} attendance={attendance} setAttendance={setAttendance} coachesAttendance={coachesAttendance} setCoachesAttendance={setCoachesAttendance} t={t} payments={payments} trainings={trainings} />}
       {tab === "coaches"   && <AdminCoaches coaches={coaches} setCoaches={setCoaches} groups={groups} players={players} payments={payments} t={t} />}
       {tab === "players"   && <AdminPlayers players={players} setPlayers={setPlayers} groups={groups} parents={parents} evals={evals} coaches={coaches} t={t} trainings={trainings} attendance={attendance} payments={payments} />}
       {tab === "payments"  && <AdminPayments payments={payments} setPayments={setPayments} players={players} coaches={coaches} parents={parents} prices={prices} t={t} />}
       {tab === "prices"    && <AdminPrices prices={prices} setPrices={setPrices} t={t} />}
       {tab === "schedule"  && <AdminTrainings trainings={trainings} setTrainings={setTrainings} groups={groups} coaches={coaches} t={t} />}
-      {tab === "reports"   && <AdminReports players={players} coaches={coaches} groups={groups} payments={payments} attendance={attendance} evals={evals} t={t} />}
+      {tab === "reports"   && <AdminReports players={players} coaches={coaches} groups={groups} payments={payments} attendance={attendance} evals={evals} t={t} trainings={trainings} />}
       {tab === "messages"  && <Messaging messages={messages} setMessages={setMessages} meId="admin" meName="الإدارة" coaches={coaches} parents={parents} t={t} />}
     </Shell>
   );
 }
 
 /* ── Admin Overview ─────────────────────────────────── */
-function AdminOverview({ players, coaches, groups, payments, attendance = [], t }) {
+function AdminOverview({ players, coaches, groups, payments, attendance = [], t, trainings }) {
   const total   = payments.reduce((a, p) => a + p.amount, 0);
   const month   = payments.filter(p => p.month === CUR_MONTH).reduce((a, p) => a + p.amount, 0);
-  const active  = players.filter(p => p.status === "نشط").length;
-  const unpaid  = players.filter(p => !payments.some(pay => pay.playerId === p.id && pay.type === "subscription" && pay.month === CUR_MONTH)).length;
+  const active  = players.filter(p => {
+    if (p.status === "موقوف") return false;
+    const sd = getPlayerSubscriptionDetails(p, trainings, attendance, payments);
+    return !sd.isUnpaid && !sd.isExpired;
+  }).length;
+  const unpaid  = players.filter(p => {
+    const sd = getPlayerSubscriptionDetails(p, trainings, attendance, payments);
+    return sd.isUnpaid || sd.isExpired;
+  }).length;
   const byType  = Object.entries(PAY_TYPES).map(([k, v]) => ({ ...v, k, total: payments.filter(p => p.type === k).reduce((a, p) => a + p.amount, 0), count: payments.filter(p => p.type === k).length }));
 
   // Dynamic Revenue data for the last 6 months
@@ -1749,8 +1756,11 @@ function AdminOverview({ players, coaches, groups, payments, attendance = [], t 
           })}
         </Card>
         <Card t={t} style={{ padding: 22 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: "#EF4444", marginBottom: 14 }}>⚠️ لم يدفعوا اشتراك {CUR_MONTH.split(" ")[0]}</div>
-          {players.filter(p => isMonthAfterJoin(CUR_MONTH, p.joinDate) && !payments.some(pay => pay.playerId === p.id && pay.type === "subscription" && pay.month === CUR_MONTH)).map(p => (
+          <div style={{ fontWeight: 700, fontSize: 13, color: "#EF4444", marginBottom: 14 }}>⚠️ اشتراكات منتهية أو غير مسددة</div>
+          {players.filter(p => {
+            const sd = getPlayerSubscriptionDetails(p, trainings, attendance, payments);
+            return sd.isUnpaid || sd.isExpired;
+          }).map(p => (
             <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 0", borderBottom: `1px solid ${t.border}` }}>
               <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
                 <Avatar name={p.name} size={28} color="#EF4444"/>
@@ -1766,7 +1776,7 @@ function AdminOverview({ players, coaches, groups, payments, attendance = [], t 
 }
 
 /* ── Admin Teams (NEW) ──────────────────────────────── */
-function AdminTeams({ groups, setGroups, coaches, players, t }) {
+function AdminTeams({ groups, setGroups, coaches, players, t, trainings, attendance, payments }) {
   const [modal, setModal]   = useState(null);
   const [form, setForm]     = useState({ name: "", coachId: "", color: "#06B6D4" });
   const [selGroup, setSelGroup] = useState(null);
@@ -1849,7 +1859,13 @@ function AdminTeams({ groups, setGroups, coaches, players, t }) {
                         <span style={{ fontSize: 11, fontWeight: 700, color: p.score > 80 ? "#10B981" : p.score > 60 ? "#F59E0B" : "#EF4444" }}>{p.score}</span>
                       </div>
                     </td>
-                    <td style={{ padding: "11px 12px" }}><Chip text={p.status} color={p.status === "نشط" ? "#10B981" : "#EF4444"}/></td>
+                    <td style={{ padding: "11px 12px" }}>
+                      {(() => {
+                        const sd = getPlayerSubscriptionDetails(p, trainings, attendance, payments);
+                        const status = (p.status === "موقوف") ? "موقوف" : (sd.isUnpaid || sd.isExpired) ? "غير نشط" : "نشط";
+                        return <Chip text={status} color={status === "نشط" ? "#10B981" : "#EF4444"}/>;
+                      })()}
+                    </td>
                   </tr>
                 ))}
                 {gPlayers.length === 0 && (
@@ -2384,7 +2400,12 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
                       <span style={{ fontSize: 12, fontWeight: 700, color: "#10B981" }}>{subDetails.attendedCount} / 12</span>
                     )}
                   </td>
-                  <td style={{ padding: "11px 14px" }}><Chip text={p.status} color={p.status === "نشط" ? "#10B981" : "#EF4444"}/></td>
+                  <td style={{ padding: "11px 14px" }}>
+                    {(() => {
+                      const status = (p.status === "موقوف") ? "موقوف" : (subDetails.isUnpaid || subDetails.isExpired) ? "غير نشط" : "نشط";
+                      return <Chip text={status} color={status === "نشط" ? "#10B981" : "#EF4444"}/>;
+                    })()}
+                  </td>
                   <td style={{ padding: "11px 14px", fontSize: 13, fontWeight: 800, color: p.score > 80 ? "#10B981" : p.score > 60 ? "#F59E0B" : "#EF4444" }}>{p.score}</td>
                   <td style={{ padding: "11px 14px" }}>
                     <button onClick={e => { e.stopPropagation(); setPlayers(ps => ps.filter(x => x.id !== p.id)); }}
@@ -3225,7 +3246,7 @@ function AdminTrainings({ trainings, setTrainings, groups, coaches, t }) {
 /* ══════════════════════════════════════════════════════════
    ADMIN REPORTS — Excel Export (Monthly & Annual)
 ══════════════════════════════════════════════════════════ */
-function AdminReports({ players, coaches, groups, payments, attendance, evals, t }) {
+function AdminReports({ players, coaches, groups, payments, attendance, evals, t, trainings }) {
   const [reportType, setReportType] = useState("monthly");
   const [selMonth, setSelMonth] = useState(CUR_MONTH);
   const [selYear, setSelYear] = useState(new Date().getFullYear().toString());
@@ -3279,7 +3300,11 @@ function AdminReports({ players, coaches, groups, payments, attendance, evals, t
             "المركز": p.position || "—",
             "المجموعة": g?.name || "—",
             "المدرب": coach?.name || "—",
-            "الحالة": p.status,
+            "الحالة": (() => {
+              if (p.status === "موقوف") return "موقوف";
+              const sd = getPlayerSubscriptionDetails(p, trainings, attendance, payments);
+              return (sd.isUnpaid || sd.isExpired) ? "غير نشط" : "نشط";
+            })(),
             "التقييم": p.score || 0,
             "نسبة الحضور": `${p.attendancePct || 0}%`,
             "الأهداف": p.goals || 0,
@@ -4477,7 +4502,7 @@ function ParentPortal({ user, onLogout, players, groups, coaches, parents, payme
       {tab === "overview"   && <ParentOverview child={child} childGroup={childGroup} childCoach={childCoach} childPays={childPays} childEvals={childEvals} prices={prices} trainings={trainings} coaches={coaches} t={t} attendance={attendance}/>}
       {tab === "scores"     && <ParentScores child={child} childEvals={childEvals} childCoach={childCoach} t={t}/>}
       {tab === "attendance" && <ParentAttendance child={child} childAtt={childAtt} childPays={childPays} t={t}/>}
-      {tab === "payments"   && <ParentPayments child={child} childPays={childPays} prices={prices} t={t}/>}
+      {tab === "payments"   && <ParentPayments child={child} childPays={childPays} prices={prices} t={t} trainings={trainings} attendance={attendance}/>}
       {tab === "schedule"   && <ParentSchedule childGroup={childGroup} childCoach={childCoach} trainings={trainings} t={t}/>}
       {tab === "messages"   && <Messaging messages={messages} setMessages={setMessages} meId={user.id} meName={parent.name} coaches={coaches} parents={parents} t={t} role="parent" myCoachIds={myCoachIds} />}
     </Shell>
@@ -4677,7 +4702,10 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
                 <Chip text={child.position} color="#10B981"/>
                 <Chip text={childGroup?.name || "—"} color="#06B6D4"/>
                 <Chip text={`مدرب: ${childCoach?.name || "—"}`} color="#7C49A8"/>
-                <Chip text={child.status} color={child.status === "نشط" ? "#10B981" : "#EF4444"}/>
+                {(() => {
+                  const status = (child.status === "موقوف") ? "موقوف" : (subDetails.isUnpaid || subDetails.isExpired) ? "غير نشط" : "نشط";
+                  return <Chip text={status} color={status === "نشط" ? "#10B981" : "#EF4444"}/>;
+                })()}
               </div>
             </div>
           </div>
@@ -4832,14 +4860,14 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
             </div>
             <div style={{ textAlign: "left" }}>
               <span style={{
-                background: monthPaid ? "rgba(16,185,129,0.12)" : "rgba(239,68,68,0.12)",
-                color: monthPaid ? "#10B981" : "#EF4444",
+                background: subDetails.isUnpaid ? "rgba(239,68,68,0.12)" : subDetails.isExpired ? "rgba(245,158,11,0.12)" : "rgba(16,185,129,0.12)",
+                color: subDetails.isUnpaid ? "#EF4444" : subDetails.isExpired ? "#F59E0B" : "#10B981",
                 padding: "6px 12px",
                 borderRadius: 10,
                 fontSize: 11,
                 fontWeight: 800
               }}>
-                {monthPaid ? "✅ اشتراك الشهر مدفوع" : "⚠️ اشتراك الشهر مستحق"}
+                {subDetails.isUnpaid ? "⚠️ اشتراك غير مسدد" : subDetails.isExpired ? "🚨 الحصص منتهية" : `✅ الاشتراك نشط (${subDetails.attendedCount} / 12)`}
               </span>
             </div>
           </div>
@@ -4964,20 +4992,20 @@ function ParentAttendance({ child, childAtt, childPays, t }) {
   );
 }
 
-function ParentPayments({ child, childPays, prices, t }) {
+function ParentPayments({ child, childPays, prices, t, trainings, attendance }) {
   const total     = childPays.reduce((a, p) => a + p.amount, 0);
-  const monthPaid = childPays.some(p => p.type === "subscription" && p.month === CUR_MONTH);
-  const shouldHavePaid = isMonthAfterJoin(CUR_MONTH, child?.joinDate);
   const byType    = Object.entries(PAY_TYPES).map(([k, v]) => ({ k, ...v, paid: childPays.filter(p => p.type === k).reduce((a, p) => a + p.amount, 0), count: childPays.filter(p => p.type === k).length }));
+  const subDetails = getPlayerSubscriptionDetails(child, trainings, attendance, childPays);
 
   return (
     <div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginBottom: 18 }} className="s1">
         <StatCard label="إجمالي المدفوعات" counter={total} value={fmtMoney(total)} icon="💰" color="#10B981" t={t}/>
         <StatCard label="عدد العمليات" counter={childPays.length} icon="🧾" color="#7C49A8" t={t}/>
-        <StatCard label={`اشتراك ${CUR_MONTH.split(" ")[0]}`} value={!shouldHavePaid ? "غير مطلوب ⚪" : monthPaid ? "مدفوع ✅" : "لم يُدفع ⚠️"} icon="📋" color={!shouldHavePaid ? t.textDim : monthPaid ? "#10B981" : "#EF4444"} t={t}/>
+        <StatCard label="حالة الاشتراك الحالي" value={subDetails.isUnpaid ? "غير مسدد ⚠️" : subDetails.isExpired ? "منتهي 🚨" : "نشط ✅"} icon="📋" color={subDetails.isUnpaid ? "#EF4444" : subDetails.isExpired ? "#F59E0B" : "#10B981"} t={t}/>
       </div>
-      {(!monthPaid && shouldHavePaid) && <div style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)", borderRadius: 12, padding: 16, marginBottom: 18, fontSize: 13, color: "#FCA5A5" }}>⚠️ اشتراك {CUR_MONTH} لم يُدفع — المبلغ المطلوب: <strong>{fmtMoney(prices.subscription)}</strong></div>}
+      {subDetails.isUnpaid && <div style={{ background: "rgba(239,68,68,.08)", border: "1px solid rgba(239,68,68,.2)", borderRadius: 12, padding: 16, marginBottom: 18, fontSize: 13, color: "#FCA5A5" }}>⚠️ الاشتراك الحالي غير مسدد — يرجى سداد دفعة الاشتراك لتفعيل الحصص التدريبية. المبلغ المطلوب: <strong>{fmtMoney(prices.subscription)}</strong></div>}
+      {(!subDetails.isUnpaid && subDetails.isExpired) && <div style={{ background: "rgba(245,158,11,.08)", border: "1px solid rgba(245,158,11,.2)", borderRadius: 12, padding: 16, marginBottom: 18, fontSize: 13, color: "#FBCFE8" }}>🚨 انتهت حصص الاشتراك الحالي (12 / 12) — يرجى تجديد الاشتراك لتفعيل الحصص الجديدة. المبلغ المطلوب: <strong>{fmtMoney(prices.subscription)}</strong></div>}
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }} className="s2">
         {byType.filter(tb => tb.count > 0).map(tb => (
           <Card key={tb.k} t={t} style={{ padding: 18 }}>
