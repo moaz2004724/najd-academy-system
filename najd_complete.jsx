@@ -1590,7 +1590,7 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
   ];
   return (
     <Shell title="لوحة الإدارة" subtitle="نادي نجد الرياض" color="#7C49A8" icon="dashboard" tabs={tabs} activeTab={tab} setActiveTab={setTab} onLogout={onLogout} badge="مدير عام" user={user} t={t} syncStatus={syncStatus}>
-      {tab === "overview"  && <AdminOverview players={players} coaches={coaches} groups={groups} payments={payments} attendance={attendance} t={t} trainings={trainings} />}
+      {tab === "overview"  && <AdminOverview players={players} coaches={coaches} groups={groups} payments={payments} attendance={attendance} t={t} trainings={trainings} expenses={expenses} />}
       {tab === "teams"     && <AdminTeams groups={groups} setGroups={setGroups} coaches={coaches} players={players} t={t} trainings={trainings} attendance={attendance} payments={payments} />}
       {tab === "attendance" && <AdminAttendance groups={groups} players={players} coaches={coaches} attendance={attendance} setAttendance={setAttendance} coachesAttendance={coachesAttendance} setCoachesAttendance={setCoachesAttendance} t={t} payments={payments} trainings={trainings} />}
       {tab === "coaches"   && <AdminCoaches coaches={coaches} setCoaches={setCoaches} groups={groups} players={players} payments={payments} t={t} />}
@@ -1605,7 +1605,7 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
 }
 
 /* ── Admin Overview ─────────────────────────────────── */
-function AdminOverview({ players, coaches, groups, payments, attendance = [], t, trainings }) {
+function AdminOverview({ players, coaches, groups, payments, attendance = [], t, trainings, expenses = [] }) {
   const total   = payments.reduce((a, p) => a + p.amount, 0);
   const month   = payments.filter(p => p.month === CUR_MONTH).reduce((a, p) => a + p.amount, 0);
   const active  = players.filter(p => {
@@ -1632,13 +1632,17 @@ function AdminOverview({ players, coaches, groups, payments, attendance = [], t,
     const monthKey = `${monthName} ${year}`;
     
     const monthIncome = payments
-      .filter(p => p.month === monthKey || (p.date && p.date.startsWith(`${year}-${String(d.getMonth() + 1).padStart(2, '0')}`)))
+      .filter(p => p.month === monthKey || (p.date && p.date.startsWith(`${year}-&month`.replace('&month', String(d.getMonth() + 1).padStart(2, '0')))))
       .reduce((sum, p) => sum + (p.amount || 0), 0);
+
+    const monthRegisteredExpenses = (expenses || [])
+      .filter(e => e.month === monthKey || (e.date && e.date.startsWith(`${year}-&month`.replace('&month', String(d.getMonth() + 1).padStart(2, '0')))))
+      .reduce((sum, e) => sum + (e.amount || 0), 0);
 
     revData.push({
       month: monthName,
       income: monthIncome,
-      expenses: monthlyExpenses
+      expenses: monthlyExpenses + monthRegisteredExpenses
     });
   }
 
