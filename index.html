@@ -4,6 +4,43 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>نادي نجد الرياض</title>
+    <link rel="stylesheet" href="/NajdIcons.css" />
+    <script>
+      (function() {
+        function replaceRiyal(node) {
+          if (node.nodeType === Node.TEXT_NODE) {
+            if (node.nodeValue.includes('ر.س')) {
+              node.nodeValue = node.nodeValue.replace(/ر\.س/g, '\uE000');
+            }
+          } else {
+            if (node.nodeName === 'SCRIPT' || node.nodeName === 'STYLE' || node.nodeName === 'IFRAME') return;
+            for (let child of node.childNodes) {
+              replaceRiyal(child);
+            }
+          }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+          replaceRiyal(document.body);
+
+          const observer = new MutationObserver((mutations) => {
+            for (let mutation of mutations) {
+              if (mutation.type === 'childList') {
+                mutation.addedNodes.forEach(node => replaceRiyal(node));
+              } else if (mutation.type === 'characterData') {
+                replaceRiyal(mutation.target);
+              }
+            }
+          });
+
+          observer.observe(document.body, {
+            childList: true,
+            subtree: true,
+            characterData: true
+          });
+        });
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
