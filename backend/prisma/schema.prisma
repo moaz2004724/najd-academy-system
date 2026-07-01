@@ -166,3 +166,13 @@ model Training {
   type          String   @default("training") // "training" or "match"
   isFriendly    Boolean  @default(false)
 }
+
+model Expense {
+  id        String   @id @default(cuid())
+  item      String
+  amount    Float
+  purchaser String
+  date      DateTime @default(now())
+  month     String
+  note      String?
+}

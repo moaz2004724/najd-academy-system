@@ -29,6 +29,7 @@ app.post('/api/reset-database', async (req, res) => {
     await prisma.evaluation.deleteMany();
     await prisma.attendance.deleteMany();
     await prisma.payment.deleteMany();
+    await prisma.expense.deleteMany();
     await prisma.training.deleteMany();
     await prisma.player.deleteMany();
     await prisma.coach.deleteMany();
@@ -90,7 +91,7 @@ app.post('/api/login', async (req, res) => {
 // --- Generic Fetch Route (To get all state at once) ---
 app.get('/api/initial-data', async (req, res) => {
   try {
-    const [groups, coaches, players, payments, attendance, coachesAttendance, evals, messages, trainings, parentsRaw] = await Promise.all([
+    const [groups, coaches, players, payments, attendance, coachesAttendance, evals, messages, trainings, parentsRaw, expenses] = await Promise.all([
       prisma.group.findMany(),
       prisma.coach.findMany({ include: { user: true } }),
       prisma.player.findMany(),
@@ -100,7 +101,8 @@ app.get('/api/initial-data', async (req, res) => {
       prisma.evaluation.findMany(),
       prisma.message.findMany(),
       prisma.training.findMany(),
-      prisma.parent.findMany({ include: { user: true } })
+      prisma.parent.findMany({ include: { user: true } }),
+      prisma.expense.findMany()
     ]);
 
     const parents = parentsRaw.map(par => ({
@@ -128,7 +130,8 @@ app.get('/api/initial-data', async (req, res) => {
       evals,
       messages,
       trainings,
-      parents
+      parents,
+      expenses
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -258,6 +261,36 @@ app.post('/api/payments', async (req, res) => {
     res.json(payment);
   } catch (e) {
     console.error("Payment error:", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.post('/api/expenses', async (req, res) => {
+  try {
+    const { id, item, amount, purchaser, date, month, note } = req.body;
+    const expense = await prisma.expense.upsert({
+      where: { id: id || 'new' },
+      update: {
+        item,
+        amount: parseFloat(amount),
+        purchaser,
+        date: new Date(date),
+        month,
+        note
+      },
+      create: {
+        id,
+        item,
+        amount: parseFloat(amount),
+        purchaser,
+        date: new Date(date),
+        month,
+        note
+      }
+    });
+    res.json(expense);
+  } catch (e) {
+    console.error("Expense error:", e);
     res.status(500).json({ error: e.message });
   }
 });
@@ -581,6 +614,17 @@ app.delete('/api/payments/:id', async (req, res) => {
     res.json({ success: true });
   } catch (e) {
     console.error("Error deleting payment:", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+app.delete('/api/expenses/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    await prisma.expense.delete({ where: { id } });
+    res.json({ success: true });
+  } catch (e) {
+    console.error("Error deleting expense:", e);
     res.status(500).json({ error: e.message });
   }
 });

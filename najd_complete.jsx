@@ -2502,16 +2502,19 @@ const ACADEMY_WEBSITE = "https://najd-academy-system.vercel.app/";
 
 function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
   const invoiceRef = useRef(null);
+  const isExpense = !!payment.purchaser;
 
   // Collect all payments for the same player in the same month
-  const relatedPayments = allPayments.filter(
+  const relatedPayments = isExpense ? [payment] : (allPayments || []).filter(
     p => p.playerId === payment.playerId && p.month === payment.month
   );
 
-  const player = players.find(p => p.id === payment.playerId);
-  const parent = parents ? parents.find(par => par.id === player?.parentId) : null;
-  const totalAmount = relatedPayments.reduce((sum, p) => sum + p.amount, 0);
-  const invoiceNum = `INV-${payment.id.replace(/\D/g, '').slice(-8).padStart(8, '0')}`;
+  const player = isExpense ? null : (players || []).find(p => p.id === payment.playerId);
+  const parent = !isExpense && parents ? parents.find(par => par.id === player?.parentId) : null;
+  const totalAmount = isExpense ? payment.amount : relatedPayments.reduce((sum, p) => sum + p.amount, 0);
+  const invoiceNum = isExpense
+    ? `EXP-${payment.id.replace(/\D/g, '').slice(-8).padStart(8, '0')}`
+    : `INV-${payment.id.replace(/\D/g, '').slice(-8).padStart(8, '0')}`;
 
   const TERMS = [
     "لا يحق للمشترك المطالبة بأي مبلغ في حال أراد عدم الاكمال في التدريبات لأي ظرف كان.",
@@ -2529,8 +2532,6 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=110x110&data=${encodeURIComponent(ACADEMY_WEBSITE)}&bgcolor=ffffff&color=6D28D9&margin=4`;
 
   // ── Opens a full standalone invoice page in a new window
-  // mode: 'print' → auto-triggers print dialog
-  //        'share' → shows Share button using navigator.share
   const openInvoiceWindow = (mode) => {
     const content = invoiceRef.current;
     if (!content) return;
@@ -2542,15 +2543,14 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
 
     const shareScript = mode === 'share' ? `
       async function doShare() {
-        const title = 'فاتورة مشترك — نادي نجد الرياض';
+        const title = '${isExpense ? 'سند صرف مصروفات' : 'فاتورة مشترك'} — نادي نجد الرياض';
         const text = [
-          'فاتورة مشترك — نادي نجد الرياض',
-          'اللاعب: ${payment.playerName}',
-          'الشهر: ${payment.month}',
+          '${isExpense ? 'سند صرف مصروفات' : 'فاتورة مشترك'} — نادي نجد الرياض',
+          '${isExpense ? 'الغرض: ' + payment.item : 'اللاعب: ' + payment.playerName}',
+          '${isExpense ? 'القائم بالصرف: ' + payment.purchaser : 'الشهر: ' + payment.month}',
           'المجموع: ${fmtMoney(totalAmount)}',
           '',
-          'للدخول لبوابة ولي الأمر:',
-          '${ACADEMY_WEBSITE}'
+          'نادي نجد الرياض'
         ].join('\\n');
         if (navigator.share) {
           try {
@@ -2570,7 +2570,7 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>فاتورة — ${payment.playerName} — ${payment.month}</title>
+  <title>${isExpense ? 'سند صرف' : 'فاتورة'} — ${isExpense ? payment.item : payment.playerName} — ${payment.month || ''}</title>
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700;800;900&display=swap" rel="stylesheet">
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -2604,17 +2604,17 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
 </head>
 <body>
   <div class="action-bar">
-    <span class="action-bar-title">🧾 فاتورة — ${payment.playerName}</span>
+    <span class="action-bar-title">🧾 ${isExpense ? 'سند صرف مصروفات' : 'فاتورة مشترك'} — ${isExpense ? payment.item : payment.playerName}</span>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       ${shareBtn}
-      <button class="btn btn-ghost" onclick="window.print()">\u{1F5A8}\uFE0F طباعة ‏/ حفظ PDF</button>
+      <button class="btn btn-ghost" onclick="window.print()">🖨️ طباعة ‏/ حفظ PDF</button>
     </div>
   </div>
   <div class="invoice-page">${content.innerHTML}</div>
   <script>
     ${shareScript}
     ${autoPrint}
-  <\/script>
+  </script>
 </body>
 </html>`);
     win.document.close();
@@ -2638,7 +2638,9 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
           padding: '14px 20px',
           display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', justifyContent: 'space-between'
         }}>
-          <span style={{ color: '#fff', fontWeight: 800, fontSize: 14, fontFamily: "'Cairo',sans-serif" }}>🧾 فاتورة مشترك — {payment.playerName}</span>
+          <span style={{ color: '#fff', fontWeight: 800, fontSize: 14, fontFamily: "'Cairo',sans-serif" }}>
+            🧾 {isExpense ? 'سند صرف مصروفات' : 'فاتورة مشترك'} — {isExpense ? payment.item : payment.playerName}
+          </span>
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             <button onClick={handleShare} style={{
               padding: '8px 18px', borderRadius: 8, border: 'none',
@@ -2679,7 +2681,7 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
             {/* Invoice number on right */}
             <div style={{ minWidth: 120, textAlign: 'right' }}>
               <div style={{ fontSize: 13, fontWeight: 900, color: '#6D28D9' }}>{invoiceNum}</div>
-              <div style={{ fontSize: 10, color: '#aaa', marginTop: 2 }}>رقم الفاتورة</div>
+              <div style={{ fontSize: 10, color: '#aaa', marginTop: 2 }}>{isExpense ? 'رقم السند' : 'رقم الفاتورة'}</div>
             </div>
             {/* Academy name + single logo */}
             <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
@@ -2696,89 +2698,150 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
 
           {/* ── Title Bar ── */}
           <div style={{ background: 'linear-gradient(135deg,#5B21B6,#7C3AED)', margin: '0 0 20px', padding: '12px 40px', textAlign: 'center' }}>
-            <div style={{ color: '#fff', fontSize: 18, fontWeight: 900, letterSpacing: 1 }}>فاتورة مشترك</div>
-          </div>
-
-          {/* ── Player Info ── */}
-          <div style={{ margin: '0 40px 18px', background: '#f8f5ff', borderRadius: 10, padding: '18px 22px', border: '1px solid #e0d0ff' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px 20px' }}>
-              <div>
-                <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>اسم اللاعب</div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a2e' }}>{payment.playerName}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>الشهر</div>
-                <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a2e' }}>{payment.month}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>تاريخ الإصدار</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{todayStr}</div>
-              </div>
-              <div>
-                <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>المستلم</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#7C3AED' }}>{payment.coachName || 'الإدارة'}</div>
-              </div>
-              {parent && (
-                <div>
-                  <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>ولي الأمر</div>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{parent.name}</div>
-                </div>
-              )}
-              <div>
-                <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>المجموع</div>
-                <div style={{ fontSize: 14, fontWeight: 900, color: '#7C3AED' }}>{fmtMoney(totalAmount)}</div>
-              </div>
+            <div style={{ color: '#fff', fontSize: 18, fontWeight: 900, letterSpacing: 1 }}>
+              {isExpense ? 'سند صرف مصروفات' : 'فاتورة مشترك'}
             </div>
           </div>
+
+          {/* ── Details Block ── */}
+          {isExpense ? (
+            <div style={{ margin: '0 40px 18px', background: '#fffbeb', borderRadius: 10, padding: '18px 22px', border: '1px solid #fde68a' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px 20px' }}>
+                <div>
+                  <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>الغرض / البيان</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a2e' }}>{payment.item}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>القائم بالصرف</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a2e' }}>{payment.purchaser}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>تاريخ الصرف</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{payment.date ? (typeof payment.date === "string" ? payment.date.substring(0, 10) : getLocalDateString(payment.date)) : todayStr}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>الشهر المالي</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{payment.month}</div>
+                </div>
+                {payment.note && (
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>الملاحظات</div>
+                    <div style={{ fontSize: 12, color: '#555' }}>{payment.note}</div>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div style={{ margin: '0 40px 18px', background: '#f8f5ff', borderRadius: 10, padding: '18px 22px', border: '1px solid #e0d0ff' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px 20px' }}>
+                <div>
+                  <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>اسم اللاعب</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a2e' }}>{payment.playerName}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>الشهر</div>
+                  <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a2e' }}>{payment.month}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>تاريخ الإصدار</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{todayStr}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>المستلم</div>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: '#7C3AED' }}>{payment.coachName || 'الإدارة'}</div>
+                </div>
+                {parent && (
+                  <div>
+                    <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>ولي الأمر</div>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{parent.name}</div>
+                  </div>
+                )}
+                <div>
+                  <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>المجموع</div>
+                  <div style={{ fontSize: 14, fontWeight: 900, color: '#7C3AED' }}>{fmtMoney(totalAmount)}</div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* ── Items Table ── */}
           <div style={{ margin: '0 40px 18px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ background: 'linear-gradient(135deg,#5B21B6,#7C3AED)' }}>
-                  {['#', 'البند', 'التفاصيل', 'المبلغ'].map(h => (
-                    <th key={h} style={{
-                      padding: '11px 14px',
-                      textAlign: h === 'المبلغ' ? 'left' : 'right',
-                      fontSize: 12, fontWeight: 800, color: '#fff'
-                    }}>{h}</th>
-                  ))}
+                  {isExpense
+                    ? ['#', 'البيان / الغرض', 'القائم بالصرف', 'المبلغ'].map(h => (
+                        <th key={h} style={{
+                          padding: '11px 14px',
+                          textAlign: h === 'المبلغ' ? 'left' : 'right',
+                          fontSize: 12, fontWeight: 800, color: '#fff'
+                        }}>{h}</th>
+                      ))
+                    : ['#', 'البند', 'التفاصيل', 'المبلغ'].map(h => (
+                        <th key={h} style={{
+                          padding: '11px 14px',
+                          textAlign: h === 'المبلغ' ? 'left' : 'right',
+                          fontSize: 12, fontWeight: 800, color: '#fff'
+                        }}>{h}</th>
+                      ))
+                  }
                 </tr>
               </thead>
               <tbody>
-                {relatedPayments.map((p, idx) => {
-                  const pt = PAY_TYPES[p.type];
-                  return (
-                    <tr key={p.id} style={{ background: idx % 2 === 0 ? '#fff' : '#fbf8ff', borderBottom: '1px solid #ede9f9' }}>
-                      <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 700, color: '#666', width: 36 }}>{idx + 1}</td>
-                      <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{pt?.icon} {pt?.label || p.type}</td>
-                      <td style={{ padding: '11px 14px', fontSize: 11, color: '#777' }}>{p.month}{p.note ? ` — ${p.note}` : ''}</td>
-                      <td style={{ padding: '11px 14px', fontSize: 14, fontWeight: 900, color: '#7C3AED', textAlign: 'left' }}>{fmtMoney(p.amount)}</td>
-                    </tr>
-                  );
-                })}
+                {isExpense ? (
+                  <tr style={{ background: '#fff', borderBottom: '1px solid #ede9f9' }}>
+                    <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 700, color: '#666', width: 36 }}>1</td>
+                    <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{payment.item}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 11, color: '#777' }}>{payment.purchaser}</td>
+                    <td style={{ padding: '11px 14px', fontSize: 14, fontWeight: 900, color: '#7C3AED', textAlign: 'left' }}>{fmtMoney(payment.amount)}</td>
+                  </tr>
+                ) : (
+                  relatedPayments.map((p, idx) => {
+                    const pt = PAY_TYPES[p.type];
+                    return (
+                      <tr key={p.id} style={{ background: idx % 2 === 0 ? '#fff' : '#fbf8ff', borderBottom: '1px solid #ede9f9' }}>
+                        <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 700, color: '#666', width: 36 }}>{idx + 1}</td>
+                        <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{pt?.icon} {pt?.label || p.type}</td>
+                        <td style={{ padding: '11px 14px', fontSize: 11, color: '#777' }}>{p.month}{p.note ? ` — ${p.note}` : ''}</td>
+                        <td style={{ padding: '11px 14px', fontSize: 14, fontWeight: 900, color: '#7C3AED', textAlign: 'left' }}>{fmtMoney(p.amount)}</td>
+                      </tr>
+                    );
+                  })
+                )}
               </tbody>
             </table>
           </div>
 
           {/* ── Total Bar ── */}
           <div style={{ margin: '0 40px 18px', background: 'linear-gradient(135deg,#5B21B6,#7C3AED)', borderRadius: 10, padding: '16px 22px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ color: '#E9D5FF', fontSize: 14, fontWeight: 800 }}>إجمالي مبلغ الاشتراك المستحق</div>
+            <div style={{ color: '#E9D5FF', fontSize: 14, fontWeight: 800 }}>
+              {isExpense ? 'إجمالي قيمة المصروفات' : 'إجمالي مبلغ الاشتراك المستحق'}
+            </div>
             <div style={{ color: '#FBBF24', fontSize: 20, fontWeight: 900 }}>{fmtMoney(totalAmount)}</div>
           </div>
 
-          {/* ── Terms ── */}
-          <div style={{ margin: '0 40px 18px', background: '#FFFBEB', borderRadius: 10, padding: '16px 22px', border: '1px solid #FDE68A' }}>
-            <div style={{ color: '#D97706', fontWeight: 800, fontSize: 12, marginBottom: 10 }}>📋 الشروط والأحكام</div>
-            <ol style={{ paddingRight: 16, margin: 0 }}>
-              {TERMS.map((term, i) => (
-                <li key={i} style={{ fontSize: 10.5, color: '#374151', lineHeight: '1.75', marginBottom: 3 }}>{term}</li>
-              ))}
-            </ol>
-          </div>
+          {/* ── Terms / Authorization ── */}
+          {isExpense ? (
+            <div style={{ margin: '0 40px 18px', background: '#F9FAFB', borderRadius: 10, padding: '16px 22px', border: '1px solid #E5E7EB', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 800, color: '#374151', display: 'flex', alignItems: 'center', gap: 6 }}>✍️ اعتماد الصرف</div>
+                <div style={{ fontSize: 10, color: '#6B7280', marginTop: 4 }}>تمت هذه العملية بقرار واعتماد الإدارة المالية لنادي نجد الرياض.</div>
+              </div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#10B981' }}>✓ معتمد ومسجل مالياً</div>
+            </div>
+          ) : (
+            <div style={{ margin: '0 40px 18px', background: '#FFFBEB', borderRadius: 10, padding: '16px 22px', border: '1px solid #FDE68A' }}>
+              <div style={{ color: '#D97706', fontWeight: 800, fontSize: 12, marginBottom: 10 }}>📋 الشروط والأحكام</div>
+              <ol style={{ paddingRight: 16, margin: 0 }}>
+                {TERMS.map((term, i) => (
+                  <li key={i} style={{ fontSize: 10.5, color: '#374151', lineHeight: '1.75', marginBottom: 3 }}>{term}</li>
+                ))}
+              </ol>
+            </div>
+          )}
 
           {/* ── Parent Login Credentials ── */}
-          {parent && (parent.email || parent.password) && (
+          {!isExpense && parent && (parent.email || parent.password) && (
             <div style={{ margin: '0 40px 18px', background: '#EFF6FF', borderRadius: 10, padding: '16px 22px', border: '1px solid #BFDBFE' }}>
               <div style={{ color: '#1D4ED8', fontWeight: 800, fontSize: 12, marginBottom: 10 }}>🔐 بيانات دخول ولي الأمر — بوابة الأكاديمية</div>
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px 24px' }}>
@@ -2805,28 +2868,45 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
 
           {/* ── Signature + QR ── */}
           <div style={{ margin: '0 40px 18px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '2px dashed #ddd', paddingTop: 20 }}>
-            <div>
-              <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a2e', marginBottom: 24 }}>توقيع ولي الأمر</div>
-              <div style={{ width: 200, borderBottom: '1.5px solid #555', marginBottom: 6 }}></div>
-              <div style={{ fontSize: 10, color: '#999' }}>الاسم والتوقيع</div>
-            </div>
-            {/* QR Code */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
-              <img
-                src={qrUrl}
-                alt="QR Code"
-                crossOrigin="anonymous"
-                style={{ width: 100, height: 100, borderRadius: 8, border: '2px solid #6D28D9' }}
-              />
-              <div style={{ fontSize: 9.5, color: '#888', textAlign: 'center' }}>امسح للوصول للموقع</div>
-              <div style={{ fontSize: 9, color: '#6D28D9', fontWeight: 700, direction: 'ltr' }}>{ACADEMY_WEBSITE}</div>
-            </div>
+            {isExpense ? (
+              <>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a2e', marginBottom: 24 }}>توقيع القائم بالصرف</div>
+                  <div style={{ width: 180, borderBottom: '1.5px solid #555', marginBottom: 6 }}></div>
+                  <div style={{ fontSize: 10, color: '#999' }}>{payment.purchaser}</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a2e', marginBottom: 24 }}>المدير المالي والختم</div>
+                  <div style={{ width: 180, borderBottom: '1.5px solid #555', marginBottom: 6 }}></div>
+                  <div style={{ fontSize: 10, color: '#999' }}>نادي نجد الرياض</div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a2e', marginBottom: 24 }}>توقيع ولي الأمر</div>
+                  <div style={{ width: 200, borderBottom: '1.5px solid #555', marginBottom: 6 }}></div>
+                  <div style={{ fontSize: 10, color: '#999' }}>الاسم والتوقيع</div>
+                </div>
+                {/* QR Code */}
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+                  <img
+                    src={qrUrl}
+                    alt="QR Code"
+                    crossOrigin="anonymous"
+                    style={{ width: 100, height: 100, borderRadius: 8, border: '2px solid #6D28D9' }}
+                  />
+                  <div style={{ fontSize: 9.5, color: '#888', textAlign: 'center' }}>امسح للوصول للموقع</div>
+                  <div style={{ fontSize: 9, color: '#6D28D9', fontWeight: 700, direction: 'ltr' }}>{ACADEMY_WEBSITE}</div>
+                </div>
+              </>
+            )}
           </div>
 
           {/* ── Footer ── */}
           <div style={{ borderTop: '1px solid #eee', padding: '12px 40px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ fontSize: 10, color: '#bbb' }}>تم إنشاء هذه الفاتورة إلكترونياً</div>
-            <div style={{ fontSize: 10, color: '#888', fontWeight: 600 }}>نادي نجد الرياض · أكاديمية كرة القدم</div>
+            <div style={{ fontSize: 10, color: '#bbb' }}>تم إنشاء هذا السند إلكترونياً</div>
+            <div style={{ fontSize: 10, color: '#888', fontWeight: 600 }}>نادي نجد الرياض · الإدارة المالية</div>
             <img src={logoImg} alt="" style={{ width: 28, height: 28, objectFit: 'contain', opacity: 0.4 }}/>
           </div>
         </div>
@@ -2835,17 +2915,25 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
   );
 }
 
-function AdminPayments({ payments, setPayments, players, coaches, parents, prices, t }) {
-  const [modal, setModal] = useState(false);
+function AdminPayments({ payments, setPayments, players, coaches, parents, prices, t, expenses, setExpenses }) {
+  const [subTab, setSubTab] = useState("payments"); // "payments" or "expenses"
+  const [modal, setModal] = useState(false); // payments modal
+  const [expModal, setExpModal] = useState(false); // expenses modal
   const [invoicePay, setInvoicePay] = useState(null);
   const [fc, setFc] = useState("الكل");
   const [ft, setFt] = useState("الكل");
+  const [fe, setFe] = useState("الكل"); // expense month filter
   
   const MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"].map(m => `${m} 2026`);
   
   const empty = { playerId: players[0]?.id || "", coachId: coaches[0]?.id || "none", types: ["subscription"], month: CUR_MONTH, note: "", date: getLocalDateString(new Date()) };
   const [form, setForm] = useState(empty);
+  
+  const emptyExpense = { item: "", amount: "", purchaser: "", date: getLocalDateString(new Date()), month: CUR_MONTH, note: "" };
+  const [expForm, setExpForm] = useState(emptyExpense);
+
   const filtered = payments.filter(p => (fc === "الكل" || p.coachId === fc) && (ft === "الكل" || p.type === ft));
+  const filteredExpenses = (expenses || []).filter(e => fe === "الكل" || e.month === fe);
 
   const toggleType = (type) => {
     setForm(f => {
@@ -2860,132 +2948,367 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
     const player = players.find(p => p.id === form.playerId);
     const coach  = coaches.find(c => c.id === form.coachId);
     
-    const newPayments = form.types.map(type => ({
-      id: `pay${Date.now()}-${type}`,
-      playerId: form.playerId,
-      playerName: player?.name || "",
-      coachId: form.coachId,
-      coachName: coach?.name || (form.coachId === "none" ? "الإدارة" : ""),
-      type: type,
-      amount: prices[type] || 0,
-      month: form.month,
-      date: form.date,
-      note: form.note
-    }));
-
-    setPayments(ps => [...ps, ...newPayments]);
+    if (form.id) {
+      // Edit payment
+      const updated = {
+        id: form.id,
+        playerId: form.playerId,
+        playerName: player?.name || "",
+        coachId: form.coachId,
+        coachName: coach?.name || (form.coachId === "none" ? "الإدارة" : ""),
+        type: form.type || form.types[0],
+        amount: parseFloat(form.amount) || prices[form.type] || 0,
+        month: form.month,
+        date: form.date,
+        note: form.note
+      };
+      setPayments(ps => ps.map(x => x.id === form.id ? updated : x));
+    } else {
+      // Add payment
+      const newPayments = form.types.map(type => ({
+        id: `pay${Date.now()}-&type}`.replace('&type', type),
+        playerId: form.playerId,
+        playerName: player?.name || "",
+        coachId: form.coachId,
+        coachName: coach?.name || (form.coachId === "none" ? "الإدارة" : ""),
+        type: type,
+        amount: prices[type] || 0,
+        month: form.month,
+        date: form.date,
+        note: form.note
+      }));
+      setPayments(ps => [...ps, ...newPayments]);
+    }
     setModal(false);
   };
 
-  const totalAmount = form.types.reduce((sum, type) => sum + (prices[type] || 0), 0);
+  const deletePayment = (id) => {
+    if (!window.confirm("هل أنت متأكد من رغبتك في حذف هذه الدفعة نهائياً؟")) return;
+    setPayments(ps => ps.filter(x => x.id !== id));
+  };
+
+  const saveExpense = () => {
+    if (!expForm.item.trim() || !expForm.purchaser.trim() || !expForm.amount) {
+      alert("الرجاء تعبئة الحقول الأساسية: الغرض، المبلغ، والقائم بالصرف.");
+      return;
+    }
+    const isEdit = !!expForm.id;
+    const itemData = {
+      id: isEdit ? expForm.id : `exp-${Date.now()}`,
+      item: expForm.item.trim(),
+      amount: parseFloat(expForm.amount),
+      purchaser: expForm.purchaser.trim(),
+      date: expForm.date,
+      month: expForm.month,
+      note: expForm.note?.trim() || ""
+    };
+
+    setExpenses(prev => {
+      if (isEdit) {
+        return prev.map(x => x.id === itemData.id ? itemData : x);
+      } else {
+        return [...prev, itemData];
+      }
+    });
+    setExpModal(false);
+  };
+
+  const deleteExpense = (id) => {
+    if (!window.confirm("هل أنت متأكد من رغبتك في حذف هذا المصروف نهائياً؟")) return;
+    setExpenses(prev => prev.filter(x => x.id !== id));
+  };
+
+  const totalAmount = form.types ? form.types.reduce((sum, type) => sum + (prices[type] || 0), 0) : form.amount;
 
   return (
     <div>
-      <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
-        <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-          {["الكل", ...coaches.map(c => c.id)].map(id => (
-            <button key={id} onClick={() => setFc(id)} style={{ padding: "7px 13px", borderRadius: 8, border: "1px solid", borderColor: fc === id ? "#7C49A8" : t.border, background: fc === id ? "rgba(124,73,168,.12)" : t.bg2, color: fc === id ? "#C4B5FD" : t.textDim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
-              {id === "الكل" ? "الكل" : coaches.find(c => c.id === id)?.name.split(" ")[0]}
-            </button>
-          ))}
-          {Object.entries(PAY_TYPES).map(([k, v]) => (
-            <button key={k} onClick={() => setFt(k === ft ? "الكل" : k)} style={{ padding: "7px 13px", borderRadius: 8, border: "1px solid", borderColor: ft === k ? v.color : t.border, background: ft === k ? `${v.color}18` : t.bg2, color: ft === k ? v.color : t.textDim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
-              {v.icon} {v.label}
-            </button>
-          ))}
-        </div>
-        <Btn onClick={() => { 
-          if (players.length === 0) {
-            alert("الرجاء إضافة لاعب واحد على الأقل أولاً لتتمكن من تسجيل المدفوعات.");
-            return;
-          }
-          setForm({ ...empty, playerId: players[0].id, coachId: coaches[0]?.id || "none" }); 
-          setModal(true); 
-        }}>
-          <AnimIcon type="plus" size={14} color="#fff"/> تسجيل دفعة
-        </Btn>
+      {/* ── Sub Tabs ── */}
+      <div style={{ display: "flex", gap: 14, marginBottom: 18, borderBottom: `1px solid ${t.border}`, paddingBottom: 10 }}>
+        <button onClick={() => setSubTab("payments")}
+          style={{ padding: "8px 18px", borderRadius: 10, border: "none", background: subTab === "payments" ? "rgba(124,73,168,.12)" : "transparent", color: subTab === "payments" ? "#C4B5FD" : t.textDim, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, fontFamily: "'Cairo',sans-serif" }}>
+          💰 إيرادات الاشتراكات
+        </button>
+        <button onClick={() => setSubTab("expenses")}
+          style={{ padding: "8px 18px", borderRadius: 10, border: "none", background: subTab === "expenses" ? "rgba(239,68,68,.12)" : "transparent", color: subTab === "expenses" ? "#FCA5A5" : t.textDim, fontSize: 13, fontWeight: 700, cursor: "pointer", display: "flex", alignItems: "center", gap: 8, fontFamily: "'Cairo',sans-serif" }}>
+          💸 مصروفات الأكاديمية
+        </button>
       </div>
-      <Card t={t} style={{ overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr style={{ background: t.bg, borderBottom: `1px solid ${t.border}` }}>
-              {["اللاعب", "النوع", "الشهر", "المبلغ", "المستلم", "التاريخ", "ملاحظة", "فاتورة"].map(h => (
-                <th key={h} style={{ padding: "12px 14px", textAlign: "right", fontSize: 10, color: t.textDim, fontWeight: 700 }}>{h}</th>
+
+      {subTab === "payments" ? (
+        <>
+          <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+              {["الكل", ...coaches.map(c => c.id)].map(id => (
+                <button key={id} onClick={() => setFc(id)} style={{ padding: "7px 13px", borderRadius: 8, border: "1px solid", borderColor: fc === id ? "#7C49A8" : t.border, background: fc === id ? "rgba(124,73,168,.12)" : t.bg2, color: fc === id ? "#C4B5FD" : t.textDim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
+                  {id === "الكل" ? "الكل" : coaches.find(c => c.id === id)?.name.split(" ")[0]}
+                </button>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.slice().reverse().map(p => {
-              const pt = PAY_TYPES[p.type];
-              return (
-                <tr key={p.id} className={t.name === "dark" ? "rh" : "rhl"} style={{ borderBottom: `1px solid ${t.border}`, transition: "background .15s" }}>
-                  <td style={{ padding: "11px 14px", fontSize: 12, fontWeight: 600, color: t.text }}>{p.playerName}</td>
-                  <td style={{ padding: "11px 14px" }}><Chip text={pt ? `${pt.icon} ${pt.label}` : p.type} color={pt?.color || "#7C49A8"}/></td>
-                  <td style={{ padding: "11px 14px", fontSize: 12, color: t.textDim }}>{p.month}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 13, fontWeight: 800, color: pt?.color || "#10B981" }}>{fmtMoney(p.amount)}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 11, color: "#A78BFA", fontWeight: 600 }}>{p.coachName || "الإدارة"}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 11, color: t.textDim }}>{p.date}</td>
-                  <td style={{ padding: "11px 14px", fontSize: 11, color: t.textDim }}>{p.note || "—"}</td>
-                  <td style={{ padding: "8px 14px" }}>
-                    <button
-                      onClick={() => setInvoicePay(p)}
-                      title="إصدار فاتورة"
-                      style={{
-                        padding: "6px 12px", borderRadius: 8, border: "1px solid #7C3AED",
-                        background: "rgba(124,58,237,0.10)", color: "#A78BFA",
-                        fontSize: 11, fontWeight: 700, cursor: "pointer",
-                        fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 5,
-                        transition: "all .15s", whiteSpace: "nowrap"
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = "rgba(124,58,237,0.22)"; e.currentTarget.style.color = "#C4B5FD"; }}
-                      onMouseLeave={e => { e.currentTarget.style.background = "rgba(124,58,237,0.10)"; e.currentTarget.style.color = "#A78BFA"; }}
-                    >
-                      🧾 فاتورة
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-        <div style={{ padding: "12px 18px", borderTop: `1px solid ${t.border}`, display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-          <span style={{ color: t.textDim }}>{filtered.length} عملية</span>
-          <span style={{ fontWeight: 800, color: "#10B981" }}>الإجمالي: {fmtMoney(filtered.reduce((a, p) => a + p.amount, 0))}</span>
-        </div>
-      </Card>
-      {modal && (
-        <Modal title="تسجيل دفعة جديدة" onClose={() => setModal(false)} t={t}>
-          <Input label="اللاعب" value={form.playerId} onChange={v => setForm(f => ({ ...f, playerId: v }))} options={players.map(p => ({ v: p.id, l: p.name }))} t={t}/>
-          <Input label="المستلم" value={form.coachId} onChange={v => setForm(f => ({ ...f, coachId: v }))} options={[{ v: "none", l: "الإدارة (لا يوجد مدرب)" }, ...coaches.map(c => ({ v: c.id, l: c.name }))]} t={t}/>
-          
-          <div style={{ marginBottom: 14 }}>
-            <label style={{ display: "block", fontSize: 11, color: t.textDim, fontWeight: 600, marginBottom: 8 }}>النوع (يمكن اختيار أكثر من نوع)</label>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
               {Object.entries(PAY_TYPES).map(([k, v]) => (
-                <button key={k} onClick={() => toggleType(k)} 
-                  style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px", borderRadius: 10, border: "1px solid", borderColor: form.types.includes(k) ? v.color : t.border, background: form.types.includes(k) ? `${v.color}15` : t.inputBg, color: form.types.includes(k) ? v.color : t.textDim, fontSize: 12, fontWeight: 600, cursor: "pointer", transition: "all .2s", textAlign: "right" }}>
-                  <span style={{ fontSize: 16 }}>{form.types.includes(k) ? "✅" : v.icon}</span>
-                  <span>{v.label}</span>
+                <button key={k} onClick={() => setFt(k === ft ? "الكل" : k)} style={{ padding: "7px 13px", borderRadius: 8, border: "1px solid", borderColor: ft === k ? v.color : t.border, background: ft === k ? `${v.color}18` : t.bg2, color: ft === k ? v.color : t.textDim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
+                  {v.icon} {v.label}
                 </button>
               ))}
             </div>
+            <Btn onClick={() => { 
+              if (players.length === 0) {
+                alert("الرجاء إضافة لاعب واحد على الأقل أولاً لتتمكن من تسجيل المدفوعات.");
+                return;
+              }
+              setForm({ ...empty, playerId: players[0].id, coachId: coaches[0]?.id || "none" }); 
+              setModal(true); 
+            }}>
+              <AnimIcon type="plus" size={14} color="#fff"/> تسجيل دفعة
+            </Btn>
           </div>
 
-          <Input label="الشهر" value={form.month} onChange={v => setForm(f => ({ ...f, month: v }))} options={MONTHS} t={t}/>
-          <Input label="التاريخ" value={form.date} onChange={v => setForm(f => ({ ...f, date: v }))} type="date" t={t}/>
-          <Input label="ملاحظة" value={form.note} onChange={v => setForm(f => ({ ...f, note: v }))} placeholder="اختياري" t={t}/>
-          
-          <div style={{ background: t.bg, borderRadius: 12, padding: "14px", marginBottom: 18, border: `1px dashed ${t.border2}` }}>
-            <div style={{ fontSize: 11, color: t.textDim, marginBottom: 4 }}>إجمالي المبلغ المستحق:</div>
-            <div style={{ color: "#10B981", fontWeight: 900, fontSize: 20 }}>{fmtMoney(totalAmount)}</div>
-            <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 8 }}>
-              {form.types.map(ty => <Chip key={ty} text={PAY_TYPES[ty]?.label} color={PAY_TYPES[ty]?.color} size={9}/>)}
+          <Card t={t} style={{ overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: t.bg, borderBottom: `1px solid ${t.border}` }}>
+                  {["اللاعب", "النوع", "الشهر", "المبلغ", "المستلم", "التاريخ", "ملاحظة", "العمليات"].map(h => (
+                    <th key={h} style={{ padding: "12px 14px", textAlign: "right", fontSize: 10, color: t.textDim, fontWeight: 700 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.slice().reverse().map(p => {
+                  const pt = PAY_TYPES[p.type];
+                  return (
+                    <tr key={p.id} className={t.name === "dark" ? "rh" : "rhl"} style={{ borderBottom: `1px solid ${t.border}`, transition: "background .15s" }}>
+                      <td style={{ padding: "11px 14px", fontSize: 12, fontWeight: 600, color: t.text }}>{p.playerName}</td>
+                      <td style={{ padding: "11px 14px" }}><Chip text={pt ? `${pt.icon} ${pt.label}` : p.type} color={pt?.color || "#7C49A8"}/></td>
+                      <td style={{ padding: "11px 14px", fontSize: 12, color: t.textDim }}>{p.month}</td>
+                      <td style={{ padding: "11px 14px", fontSize: 13, fontWeight: 800, color: pt?.color || "#10B981" }}>{fmtMoney(p.amount)}</td>
+                      <td style={{ padding: "11px 14px", fontSize: 11, color: "#A78BFA", fontWeight: 600 }}>{p.coachName || "الإدارة"}</td>
+                      <td style={{ padding: "11px 14px", fontSize: 11, color: t.textDim }}>{p.date ? (typeof p.date === "string" ? p.date.substring(0, 10) : getLocalDateString(p.date)) : ""}</td>
+                      <td style={{ padding: "11px 14px", fontSize: 11, color: t.textDim }}>{p.note || "—"}</td>
+                      <td style={{ padding: "8px 14px" }}>
+                        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                          <button
+                            onClick={() => setInvoicePay(p)}
+                            title="الفاتورة"
+                            style={{
+                              padding: "4px 8px", borderRadius: 6, border: "1px solid #7C3AED",
+                              background: "rgba(124,58,237,0.1)", color: "#A78BFA",
+                              fontSize: 10, fontWeight: 700, cursor: "pointer",
+                              fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 3
+                            }}
+                          >
+                            🧾 فاتورة
+                          </button>
+                          <button
+                            onClick={() => {
+                              setForm({ ...p, types: [p.type] });
+                              setModal(true);
+                            }}
+                            title="تعديل"
+                            style={{
+                              width: 26, height: 26, borderRadius: 7, border: "none",
+                              background: "rgba(245,158,11,.1)", color: "#F59E0B",
+                              cursor: "pointer", display: "grid", placeItems: "center"
+                            }}
+                          >
+                            ✏️
+                          </button>
+                          <button
+                            onClick={() => deletePayment(p.id)}
+                            title="حذف"
+                            style={{
+                              width: 26, height: 26, borderRadius: 7, border: "none",
+                              background: "rgba(239,68,68,.1)", color: "#EF4444",
+                              cursor: "pointer", display: "grid", placeItems: "center"
+                            }}
+                          >
+                            🗑️
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={8} style={{ padding: "30px", textAlign: "center", color: t.textFaint }}>لا توجد مدفوعات مسجلة تطابق التصفية.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </Card>
+        </>
+      ) : (
+        <>
+          <div style={{ display: "flex", gap: 8, justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap" }}>
+            <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+              {["الكل", ...MONTHS].map(m => (
+                <button key={m} onClick={() => setFe(m)} style={{ padding: "7px 13px", borderRadius: 8, border: "1px solid", borderColor: fe === m ? "#EF4444" : t.border, background: fe === m ? "rgba(239,68,68,.12)" : t.bg2, color: fe === m ? "#FCA5A5" : t.textDim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
+                  {m}
+                </button>
+              ))}
             </div>
+            <Btn onClick={() => {
+              setExpForm(emptyExpense);
+              setExpModal(true);
+            }} style={{ background: "#EF4444", color: "#fff" }}>
+              <AnimIcon type="plus" size={14} color="#fff"/> تسجيل مصروف
+            </Btn>
+          </div>
+
+          <Card t={t} style={{ overflow: "hidden" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr style={{ background: t.bg, borderBottom: `1px solid ${t.border}` }}>
+                  {["الغرض", "القيمة", "القائم بالصرف", "الشهر المالي", "التاريخ", "ملاحظة", "العمليات"].map(h => (
+                    <th key={h} style={{ padding: "12px 14px", textAlign: "right", fontSize: 10, color: t.textDim, fontWeight: 700 }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {filteredExpenses.slice().reverse().map(e => (
+                  <tr key={e.id} className={t.name === "dark" ? "rh" : "rhl"} style={{ borderBottom: `1px solid ${t.border}`, transition: "background .15s" }}>
+                    <td style={{ padding: "11px 14px", fontSize: 12, fontWeight: 600, color: t.text }}>{e.item}</td>
+                    <td style={{ padding: "11px 14px", fontSize: 13, fontWeight: 800, color: "#EF4444" }}>{fmtMoney(e.amount)}</td>
+                    <td style={{ padding: "11px 14px", fontSize: 12, color: t.text }}>{e.purchaser}</td>
+                    <td style={{ padding: "11px 14px", fontSize: 11, color: t.textDim }}>{e.month}</td>
+                    <td style={{ padding: "11px 14px", fontSize: 11, color: t.textDim }}>{e.date ? (typeof e.date === "string" ? e.date.substring(0, 10) : getLocalDateString(e.date)) : ""}</td>
+                    <td style={{ padding: "11px 14px", fontSize: 11, color: t.textDim }}>{e.note || "—"}</td>
+                    <td style={{ padding: "8px 14px" }}>
+                      <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                        <button
+                          onClick={() => setInvoicePay(e)}
+                          title="سند صرف"
+                          style={{
+                            padding: "4px 8px", borderRadius: 6, border: "1px solid #EF4444",
+                            background: "rgba(239,68,68,0.1)", color: "#FCA5A5",
+                            fontSize: 10, fontWeight: 700, cursor: "pointer",
+                            fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 3
+                          }}
+                        >
+                          🧾 سند صرف
+                        </button>
+                        <button
+                          onClick={() => {
+                            setExpForm(e);
+                            setExpModal(true);
+                          }}
+                          title="تعديل"
+                          style={{
+                            width: 26, height: 26, borderRadius: 7, border: "none",
+                            background: "rgba(245,158,11,.1)", color: "#F59E0B",
+                            cursor: "pointer", display: "grid", placeItems: "center"
+                          }}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => deleteExpense(e.id)}
+                          title="حذف"
+                          style={{
+                            width: 26, height: 26, borderRadius: 7, border: "none",
+                            background: "rgba(239,68,68,.1)", color: "#EF4444",
+                            cursor: "pointer", display: "grid", placeItems: "center"
+                          }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {filteredExpenses.length === 0 && (
+                  <tr>
+                    <td colSpan={7} style={{ padding: "30px", textAlign: "center", color: t.textFaint }}>لا توجد مصروفات مسجلة.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </Card>
+        </>
+      )}
+
+      {/* ── Payments Modal ── */}
+      {modal && (
+        <Modal title={form.id ? "تعديل دفعة" : "تسجيل دفعة جديدة للطلاب"} onClose={() => setModal(false)} t={t}>
+          {!form.id && (
+            <div style={{ flex: "1 1 100%" }}>
+              <Input label="اللاعب المشترك" value={form.playerId} onChange={v => setForm(f => ({ ...f, playerId: v }))} options={players.map(p => ({ v: p.id, l: p.name }))} t={t}/>
+            </div>
+          )}
+          
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 12 }}>
+            <Input label="استلمها (المدرب المستلم)" value={form.coachId} onChange={v => setForm(f => ({ ...f, coachId: v }))} options={[{ v: "none", l: "🏛️ الإدارة" }, ...coaches.map(c => ({ v: c.id, l: c.name }))]} t={t}/>
+            {form.id ? (
+              <Input label="النوع" value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} options={Object.entries(PAY_TYPES).map(([k,v]) => ({ v: k, l: v.label }))} t={t}/>
+            ) : (
+              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                <span style={{ fontSize: 11, fontWeight: 700, color: t.textDim }}>الرسوم والخدمات المطلوبة</span>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {Object.entries(PAY_TYPES).map(([k, v]) => {
+                    const has = form.types.includes(k);
+                    return (
+                      <button key={k} onClick={() => toggleType(k)}
+                        style={{ padding: "6px 12px", borderRadius: 8, border: "1px solid", borderColor: has ? v.color : t.border, background: has ? `${v.color}15` : t.bg2, color: has ? v.color : t.textDim, fontSize: 11, fontWeight: 600, cursor: "pointer", fontFamily: "'Cairo',sans-serif" }}>
+                        {v.icon} {v.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Input label="الشهر المالي" value={form.month} onChange={v => setForm(f => ({ ...f, month: v }))} options={MONTHS} t={t}/>
+            <Input label="التاريخ" value={form.date ? (typeof form.date === "string" ? form.date.substring(0, 10) : getLocalDateString(form.date)) : ""} onChange={v => setForm(f => ({ ...f, date: v }))} type="date" t={t}/>
           </div>
           
-          <div style={{ display: "flex", gap: 10 }}><Btn onClick={save} style={{ flex: 1 }}>💾 تسجيل المدفوعات</Btn><Btn variant="secondary" onClick={() => setModal(false)}>إلغاء</Btn></div>
+          {form.id && (
+            <Input label="المبلغ (ريال)" value={form.amount} onChange={v => setForm(f => ({ ...f, amount: v }))} type="number" t={t}/>
+          )}
+          
+          <Input label="ملاحظة" value={form.note || ""} onChange={v => setForm(f => ({ ...f, note: v }))} placeholder="أدخل أي ملاحظات إضافية هنا..." t={t}/>
+          
+          {!form.id && (
+            <div style={{ background: t.bg, borderRadius: 12, padding: "14px", marginBottom: 18, border: `1px dashed ${t.border}` }}>
+              <div style={{ fontSize: 11, color: t.textDim, marginBottom: 4 }}>إجمالي المبلغ المستحق:</div>
+              <div style={{ color: "#10B981", fontWeight: 900, fontSize: 20 }}>{fmtMoney(totalAmount)}</div>
+              <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 8 }}>
+                {form.types.map(ty => <Chip key={ty} text={PAY_TYPES[ty]?.label} color={PAY_TYPES[ty]?.color} size={9}/>)}
+              </div>
+            </div>
+          )}
+          
+          <div style={{ display: "flex", gap: 10 }}>
+            <Btn onClick={save} style={{ flex: 1 }}>💾 حفظ البيانات</Btn>
+            <Btn variant="secondary" onClick={() => setModal(false)}>إلغاء</Btn>
+          </div>
         </Modal>
       )}
+
+      {/* ── Expenses Modal ── */}
+      {expModal && (
+        <Modal title={expForm.id ? "تعديل المصروف" : "تسجيل مصروف جديد للأكاديمية"} onClose={() => setExpModal(false)} t={t}>
+          <Input label="الغرض / البيان (مثال: طقم كور، إيجار ملعب...)" value={expForm.item} onChange={v => setExpForm(f => ({ ...f, item: v }))} placeholder="أدخل الغرض من المصروف" t={t}/>
+          
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Input label="المبلغ (ريال)" value={expForm.amount} onChange={v => setExpForm(f => ({ ...f, amount: v }))} type="number" placeholder="المبلغ بالريال" t={t}/>
+            <Input label="من اللي جابه (القائم بالصرف)" value={expForm.purchaser} onChange={v => setExpForm(f => ({ ...f, purchaser: v }))} placeholder="اسم الشخص" t={t}/>
+          </div>
+          
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Input label="الشهر المالي" value={expForm.month} onChange={v => setExpForm(f => ({ ...f, month: v }))} options={MONTHS} t={t}/>
+            <Input label="التاريخ" value={expForm.date ? (typeof expForm.date === "string" ? expForm.date.substring(0, 10) : getLocalDateString(expForm.date)) : ""} onChange={v => setExpForm(f => ({ ...f, date: v }))} type="date" t={t}/>
+          </div>
+          
+          <Input label="ملاحظات" value={expForm.note || ""} onChange={v => setExpForm(f => ({ ...f, note: v }))} placeholder="أدخل أي ملاحظات إضافية هنا..." t={t}/>
+          
+          <div style={{ display: "flex", gap: 10, marginTop: 18 }}>
+            <Btn onClick={saveExpense} style={{ flex: 1, background: "#EF4444", color: "#fff" }}>💾 حفظ المصروف</Btn>
+            <Btn variant="secondary" onClick={() => setExpModal(false)}>إلغاء</Btn>
+          </div>
+        </Modal>
+      )}
+
+      {/* ── Invoice Modal ── */}
       {invoicePay && (
         <InvoiceModal
           payment={invoicePay}
@@ -2998,7 +3321,6 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
     </div>
   );
 }
-
 function AdminPrices({ prices, setPrices, t }) {
   const [form, setForm] = useState({ ...prices });
   const [saved, setSaved] = useState(false);
