@@ -1147,6 +1147,7 @@ export default function App() {
   const [players, setPlayers] = useState(() => JSON.parse(localStorage.getItem('najd_players') || '[]'));
   const [parents, setParents] = useState(() => JSON.parse(localStorage.getItem('najd_parents') || '[]'));
   const [payments, setPayments] = useState(() => JSON.parse(localStorage.getItem('najd_payments') || '[]'));
+  const [expenses, setExpenses] = useState(() => JSON.parse(localStorage.getItem('najd_expenses') || '[]'));
   const [theme, setTheme] = useState(() => localStorage.getItem('najd_theme') || "dark");
 
   const [syncStatus, setSyncStatus] = useState("synced"); // 'synced', 'syncing', 'error'
@@ -1177,7 +1178,8 @@ export default function App() {
         attendance: 'attendance',
         evals: 'evaluations',
         messages: 'messages',
-        trainings: 'trainings'
+        trainings: 'trainings',
+        expenses: 'expenses'
       };
       
       const path = endpointMap[table] || table;
@@ -1248,6 +1250,7 @@ export default function App() {
         if (data.coaches) setCoaches(data.coaches);
         if (data.groups) setGroups(data.groups);
         if (data.payments) setPayments(data.payments);
+        if (data.expenses) setExpenses(data.expenses);
         if (data.attendance) setAttendance(data.attendance);
         if (data.coachesAttendance) setCoachesAttendance(data.coachesAttendance);
         if (data.evals) setEvals(data.evals);
@@ -1271,6 +1274,7 @@ export default function App() {
     localStorage.setItem('najd_groups', JSON.stringify(groups));
     localStorage.setItem('najd_parents', JSON.stringify(parents));
     localStorage.setItem('najd_payments', JSON.stringify(payments));
+    localStorage.setItem('najd_expenses', JSON.stringify(expenses));
     localStorage.setItem('najd_attendance', JSON.stringify(attendance));
     localStorage.setItem('najd_coachesAttendance', JSON.stringify(coachesAttendance));
     localStorage.setItem('najd_evals', JSON.stringify(evals));
@@ -1278,7 +1282,7 @@ export default function App() {
     localStorage.setItem('najd_prices', JSON.stringify(prices));
     localStorage.setItem('najd_trainings', JSON.stringify(trainings));
     localStorage.setItem('najd_theme', theme);
-  }, [players, coaches, groups, parents, payments, attendance, coachesAttendance, evals, messages, prices, trainings, theme]);
+  }, [players, coaches, groups, parents, payments, attendance, coachesAttendance, evals, messages, prices, trainings, theme, expenses]);
 
   const t = THEMES[theme];
 
@@ -1384,6 +1388,30 @@ export default function App() {
         setPayments(val);
         setLastUpdate();
         if (API_URL && Array.isArray(val)) val.forEach(i => syncWithAPI('payments', i));
+      }
+    },
+    expenses,
+    setExpenses: (val) => {
+      if (typeof val === 'function') {
+        markLocalWrite();
+        setExpenses(prev => {
+          const next = val(prev);
+          setLastUpdate();
+          if (API_URL) {
+            const addedOrChanged = next.filter(n => {
+              const old = prev.find(p => p.id === n.id);
+              return !old || JSON.stringify(old) !== JSON.stringify(n);
+            });
+            const deleted = prev.filter(p => !next.find(n => n.id === p.id));
+            addedOrChanged.forEach(i => syncWithAPI('expenses', i));
+            deleted.forEach(i => syncWithAPI('expenses', i, true));
+          }
+          return next;
+        });
+      } else {
+        setExpenses(val);
+        setLastUpdate();
+        if (API_URL && Array.isArray(val)) val.forEach(i => syncWithAPI('expenses', i));
       }
     },
     attendance, 
@@ -1546,7 +1574,7 @@ export default function App() {
 /* ══════════════════════════════════════════════════════════
    ADMIN PORTAL
 ══════════════════════════════════════════════════════════ */
-function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, players, setPlayers, parents, payments, setPayments, attendance, setAttendance, coachesAttendance, setCoachesAttendance, evals, messages, setMessages, prices, setPrices, trainings, setTrainings, t, syncStatus }) {
+function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, players, setPlayers, parents, payments, setPayments, attendance, setAttendance, coachesAttendance, setCoachesAttendance, evals, messages, setMessages, prices, setPrices, trainings, setTrainings, t, syncStatus, expenses, setExpenses }) {
   const [tab, setTab] = useState("overview");
   const tabs = [
     { id: "overview",     icon: "dashboard",    label: "نظرة عامة"   },
@@ -1567,7 +1595,7 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
       {tab === "attendance" && <AdminAttendance groups={groups} players={players} coaches={coaches} attendance={attendance} setAttendance={setAttendance} coachesAttendance={coachesAttendance} setCoachesAttendance={setCoachesAttendance} t={t} payments={payments} trainings={trainings} />}
       {tab === "coaches"   && <AdminCoaches coaches={coaches} setCoaches={setCoaches} groups={groups} players={players} payments={payments} t={t} />}
       {tab === "players"   && <AdminPlayers players={players} setPlayers={setPlayers} groups={groups} parents={parents} evals={evals} coaches={coaches} t={t} trainings={trainings} attendance={attendance} payments={payments} />}
-      {tab === "payments"  && <AdminPayments payments={payments} setPayments={setPayments} players={players} coaches={coaches} parents={parents} prices={prices} t={t} />}
+      {tab === "payments"  && <AdminPayments payments={payments} setPayments={setPayments} players={players} coaches={coaches} parents={parents} prices={prices} t={t} expenses={expenses} setExpenses={setExpenses} />}
       {tab === "prices"    && <AdminPrices prices={prices} setPrices={setPrices} t={t} />}
       {tab === "schedule"  && <AdminTrainings trainings={trainings} setTrainings={setTrainings} groups={groups} coaches={coaches} t={t} />}
       {tab === "reports"   && <AdminReports players={players} coaches={coaches} groups={groups} payments={payments} attendance={attendance} evals={evals} t={t} trainings={trainings} />}
