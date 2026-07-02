@@ -2078,7 +2078,7 @@ function AdminCoaches({ coaches, setCoaches, groups, players, payments, t }) {
                 <div style={{ fontWeight: 800, fontSize: 16, marginTop: 12, marginBottom: 6, color: t.text }}>{c.name}</div>
                 <Chip text={c.specialty} color="#7C49A8"/>
               </div>
-              {[["الهاتف", c.phone], ["الإيميل", c.email], ["كلمة المرور", (!c.password || c.password === '••••••••') ? `Najd@${(c.phone || '').replace(/\D/g, '').slice(-4) || '1234'}` : c.password], ["الشهادة", c.cert], ["الخبرة", `${c.exp} سنة`], ["المجموعة", g?.name || "—"], ["الراتب", fmtMoney(c.salary)]].map(([k, v]) => (
+              {[["الهاتف", c.phone], ["الإيميل", c.email], ["كلمة المرور", (!c.password || c.password === '••••••••') ? (c.phone ? `Najd@${c.phone.replace(/\D/g, '').slice(-4)}` : "اضغط تعديل لتعيين كلمة مرور") : c.password], ["الشهادة", c.cert], ["الخبرة", `${c.exp} سنة`], ["المجموعة", g?.name || "—"], ["الراتب", fmtMoney(c.salary)]].map(([k, v]) => (
                 <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${t.border}`, fontSize: 12 }}>
                   <span style={{ color: t.textDim }}>{k}</span>
                   <span style={{ fontWeight: 600, color: k === "كلمة المرور" ? "#D8A435" : k === "الإيميل" ? "#06B6D4" : t.text, fontFamily: k === "كلمة المرور" ? "monospace" : undefined }}>{v}</span>
@@ -2267,7 +2267,7 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
               ["تاريخ التسجيل", formatArabicDate(p.joinDate)],
               ["تجديد الاشتراك", latestRenewalDate],
               ["إيميل الدخول", par?.email || p.email || "—"],
-              ["كلمة المرور", (!par?.password || par?.password === '••••••••') ? `najd_${(par?.phone || p.phone || '0000').replace(/\D/g, '').slice(-4)}` : par.password]
+              ["كلمة المرور", (!par?.password || par?.password === '••••••••') ? ((par?.phone || p.phone) ? `najd_${(par?.phone || p.phone).replace(/\D/g, '').slice(-4)}` : "اضغط تعديل لتعيين كلمة مرور") : par.password]
             ].map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${t.border}`, fontSize: 12 }}>
                 <span style={{ color: t.textDim }}>{k}</span>
