@@ -2267,7 +2267,7 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
               ["تاريخ التسجيل", formatArabicDate(p.joinDate)],
               ["تجديد الاشتراك", latestRenewalDate],
               ["إيميل الدخول", par?.email || p.email || "—"],
-              ["كلمة المرور", par?.password || p.password || (p.phone ? `najd_${p.phone.slice(-4)}` : "كلمة مرور ولي الأمر الحالية")]
+              ["كلمة المرور", (!par?.password || par?.password === '••••••••') ? `najd_${(par?.phone || p.phone || '0000').replace(/\D/g, '').slice(-4)}` : par.password]
             ].map(([k, v]) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${t.border}`, fontSize: 12 }}>
                 <span style={{ color: t.textDim }}>{k}</span>
@@ -2922,7 +2922,7 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
                 </div>
                 <div>
                   <div style={{ fontSize: 10, color: '#6B7280', marginBottom: 2 }}>كلمة المرور</div>
-                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1D4ED8', direction: 'ltr', textAlign: 'right', letterSpacing: 0.5 }}>{parent.password || '—'}</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1D4ED8', direction: 'ltr', textAlign: 'right', letterSpacing: 0.5 }}>{(!parent.password || parent.password === '••••••••') ? `najd_${(parent.phone || '').replace(/\D/g, '').slice(-4) || '0000'}` : parent.password}</div>
                 </div>
               </div>
               <div style={{ marginTop: 10 }}>
