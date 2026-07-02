@@ -2042,7 +2042,7 @@ function AdminCoaches({ coaches, setCoaches, groups, players, payments, t }) {
     if (!form.name.trim()) return;
     if (modal === "add") {
       const id = `c${Date.now()}`;
-      const email = `${form.name.split(" ")[0].toLowerCase()}${Math.floor(Math.random()*1000)}@najd.sa`;
+      const email = (form.email && form.email.trim()) ? form.email.trim() : `coach_${(form.phone || '').replace(/\D/g, '') || Math.floor(Math.random()*1000)}@najd.sa`;
       const password = `Najd@${(form.phone || '').replace(/\D/g, '').slice(-4) || Math.floor(Math.random()*9000)+1000}`;
       setCoaches(c => [...c, { ...form, id, email, password, joined: getLocalDateString(new Date()) }]);
     }
