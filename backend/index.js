@@ -31,10 +31,10 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// --- Database Migration: Automatically Fix Arabic Coach Emails on Startup ---
+// --- Database Migration: Automatically Fix Arabic Coach Emails and Reset Passwords on Startup ---
 async function migrateArabicCoaches() {
   try {
-    console.log("[Migration] Running coach Arabic email cleanup...");
+    console.log("[Migration] Running coach database alignment...");
     const coaches = await prisma.coach.findMany({
       include: { user: true }
     });
@@ -43,23 +43,38 @@ async function migrateArabicCoaches() {
       const user = coach.user;
       if (!user) continue;
 
-      // Check if email has Arabic or non-ASCII characters
+      let updatedEmail = user.email;
+      // 1. Fix Arabic/non-ASCII characters in email
       if (/[^\x00-\x7F]/.test(user.email)) {
-        // Use phone digits or coach ID to build a clean English email
         const phoneDigits = (user.phone || '').replace(/\D/g, '') || String(coach.id).replace(/\D/g, '') || String(Date.now()).slice(-6);
-        const cleanEmail = `coach_${phoneDigits || 'default'}@najd.sa`;
-        
-        console.log(`[Migration] Updating coach "${user.name}" email from "${user.email}" to "${cleanEmail}"`);
-        
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { email: cleanEmail }
-        });
+        updatedEmail = `coach_${phoneDigits || 'default'}@najd.sa`;
+        console.log(`[Migration] Updating coach "${user.name}" email from "${user.email}" to "${updatedEmail}"`);
       }
+
+      // 2. Set default predictable password (phone digits suffix or ID digits suffix)
+      const phoneDigits = (user.phone || '').replace(/\D/g, '');
+      let defaultPass = '';
+      if (phoneDigits) {
+        defaultPass = `Najd@${phoneDigits.slice(-4)}`;
+      } else {
+        const idDigits = String(coach.id).replace(/\D/g, '').slice(-4) || '1234';
+        defaultPass = `Najd@${idDigits}`;
+      }
+
+      const hashed = hashPassword(defaultPass);
+      console.log(`[Migration] Updating password/email for Coach "${user.name}" -> Email: "${updatedEmail}", Pass: "${defaultPass}"`);
+      
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { 
+          email: updatedEmail,
+          password: hashed
+        }
+      });
     }
-    console.log("[Migration] Coach Arabic email cleanup complete!");
+    console.log("[Migration] Coach database alignment complete!");
   } catch (err) {
-    console.error("[Migration] Error running coach Arabic email cleanup:", err);
+    console.error("[Migration] Error running coach database alignment:", err);
   }
 }
 migrateArabicCoaches();
@@ -76,16 +91,31 @@ app.post('/api/migrate-coaches', async (req, res) => {
       const user = coach.user;
       if (!user) continue;
 
+      let updatedEmail = user.email;
       if (/[^\x00-\x7F]/.test(user.email)) {
         const phoneDigits = (user.phone || '').replace(/\D/g, '') || String(coach.id).replace(/\D/g, '') || String(Date.now()).slice(-6);
-        const cleanEmail = `coach_${phoneDigits || 'default'}@najd.sa`;
-        logs.push(`Updated coach "${user.name}" email from "${user.email}" to "${cleanEmail}"`);
-        
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { email: cleanEmail }
-        });
+        updatedEmail = `coach_${phoneDigits || 'default'}@najd.sa`;
       }
+
+      const phoneDigits = (user.phone || '').replace(/\D/g, '');
+      let defaultPass = '';
+      if (phoneDigits) {
+        defaultPass = `Najd@${phoneDigits.slice(-4)}`;
+      } else {
+        const idDigits = String(coach.id).replace(/\D/g, '').slice(-4) || '1234';
+        defaultPass = `Najd@${idDigits}`;
+      }
+
+      const hashed = hashPassword(defaultPass);
+      logs.push(`Updated coach "${user.name}" -> Email: "${updatedEmail}", Pass: "${defaultPass}"`);
+      
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { 
+          email: updatedEmail,
+          password: hashed
+        }
+      });
     }
     res.json({ success: true, logs });
   } catch (err) {
