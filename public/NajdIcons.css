@@ -7,21 +7,6 @@
   font-display: block;
 }
 
-/* Apply custom icon font selectively to the specific characters */
-@font-feature-values 'NajdIcons' {
-  @styleset {
-    liga: 1;
-  }
-}
-
-/* Apply class or font stack */
 body, input, select, textarea, button, span, div, td, th {
-  font-family: 'Cairo', 'NajdIcons', sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* Force modern browsers to render emojis as text so they use the custom font */
-span, div, td, th, p, button {
-  font-variant-emoji: text;
+  font-family: 'Cairo', sans-serif;
 }

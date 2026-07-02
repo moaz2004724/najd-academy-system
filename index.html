@@ -5,30 +5,92 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>نادي نجد الرياض</title>
     <link rel="stylesheet" href="/NajdIcons.css" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" />
     <script>
       (function() {
-        function replaceRiyal(node) {
+        const emojiMap = {
+          '⚽': 'bi bi-dribbble',
+          '💰': 'bi bi-cash-coin',
+          '⚠️': 'bi bi-exclamation-triangle-fill',
+          '📈': 'bi bi-graph-up-arrow',
+          '📅': 'bi bi-calendar-event',
+          '⭐': 'bi bi-star-fill',
+          '📊': 'bi bi-bar-chart-fill',
+          '✅': 'bi bi-check-circle-fill',
+          '❌': 'bi bi-x-circle-fill',
+          '🧾': 'bi bi-receipt',
+          '📋': 'bi bi-clipboard-data-fill',
+          '💳': 'bi bi-credit-card-fill',
+          '🎯': 'bi bi-target',
+          '🏆': 'bi bi-trophy-fill',
+          '🔔': 'bi bi-bell-fill',
+          '📝': 'bi bi-pencil-square',
+          '🔒': 'bi bi-lock-fill',
+          '📬': 'bi bi-envelope-open-fill',
+          '✉️': 'bi bi-envelope-fill',
+          '💬': 'bi bi-chat-left-text-fill'
+        };
+
+        const regex = new RegExp(`(${Object.keys(emojiMap).join('|')}|ر\\.س)`, 'g');
+
+        function replaceIconsAndRiyal(node) {
           if (node.nodeType === Node.TEXT_NODE) {
-            if (node.nodeValue.includes('ر.س')) {
-              node.nodeValue = node.nodeValue.replace(/ر\.س/g, '\uE000');
+            const text = node.nodeValue;
+            if (regex.test(text)) {
+              const fragment = document.createDocumentFragment();
+              let lastIndex = 0;
+              text.replace(regex, (match, offset) => {
+                if (offset > lastIndex) {
+                  fragment.appendChild(document.createTextNode(text.substring(lastIndex, offset)));
+                }
+                
+                if (match === 'ر.س') {
+                  const span = document.createElement('span');
+                  span.style.fontFamily = 'NajdIcons';
+                  span.textContent = '\uE000';
+                  fragment.appendChild(span);
+                } else {
+                  const iconClass = emojiMap[match];
+                  if (iconClass) {
+                    const icon = document.createElement('i');
+                    icon.className = iconClass;
+                    icon.style.fontStyle = 'normal';
+                    icon.style.display = 'inline-block';
+                    icon.style.lineHeight = '1';
+                    icon.style.verticalAlign = 'middle';
+                    icon.style.margin = '0 4px';
+                    fragment.appendChild(icon);
+                  } else {
+                    fragment.appendChild(document.createTextNode(match));
+                  }
+                }
+                lastIndex = offset + match.length;
+              });
+              
+              if (lastIndex < text.length) {
+                fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+              }
+              
+              node.parentNode.replaceChild(fragment, node);
             }
           } else {
             if (node.nodeName === 'SCRIPT' || node.nodeName === 'STYLE' || node.nodeName === 'IFRAME') return;
-            for (let child of node.childNodes) {
-              replaceRiyal(child);
+            const children = Array.from(node.childNodes);
+            for (let child of children) {
+              replaceIconsAndRiyal(child);
             }
           }
         }
 
         document.addEventListener('DOMContentLoaded', () => {
-          replaceRiyal(document.body);
+          replaceIconsAndRiyal(document.body);
 
           const observer = new MutationObserver((mutations) => {
             for (let mutation of mutations) {
               if (mutation.type === 'childList') {
-                mutation.addedNodes.forEach(node => replaceRiyal(node));
+                mutation.addedNodes.forEach(node => replaceIconsAndRiyal(node));
               } else if (mutation.type === 'characterData') {
-                replaceRiyal(mutation.target);
+                replaceIconsAndRiyal(mutation.target);
               }
             }
           });
