@@ -2043,7 +2043,7 @@ function AdminCoaches({ coaches, setCoaches, groups, players, payments, t }) {
     if (modal === "add") {
       const id = `c${Date.now()}`;
       const email = `${form.name.split(" ")[0].toLowerCase()}${Math.floor(Math.random()*1000)}@najd.sa`;
-      const password = `Najd@${Math.floor(Math.random()*9000)+1000}`;
+      const password = `Najd@${(form.phone || '').replace(/\D/g, '').slice(-4) || Math.floor(Math.random()*9000)+1000}`;
       setCoaches(c => [...c, { ...form, id, email, password, joined: getLocalDateString(new Date()) }]);
     }
     else setCoaches(c => c.map(x => x.id === form.id ? form : x));
@@ -2078,7 +2078,7 @@ function AdminCoaches({ coaches, setCoaches, groups, players, payments, t }) {
                 <div style={{ fontWeight: 800, fontSize: 16, marginTop: 12, marginBottom: 6, color: t.text }}>{c.name}</div>
                 <Chip text={c.specialty} color="#7C49A8"/>
               </div>
-              {[["الهاتف", c.phone], ["الإيميل", c.email], ["كلمة المرور", c.password || "—"], ["الشهادة", c.cert], ["الخبرة", `${c.exp} سنة`], ["المجموعة", g?.name || "—"], ["الراتب", fmtMoney(c.salary)]].map(([k, v]) => (
+              {[["الهاتف", c.phone], ["الإيميل", c.email], ["كلمة المرور", (!c.password || c.password === '••••••••') ? `Najd@${(c.phone || '').replace(/\D/g, '').slice(-4) || '1234'}` : c.password], ["الشهادة", c.cert], ["الخبرة", `${c.exp} سنة`], ["المجموعة", g?.name || "—"], ["الراتب", fmtMoney(c.salary)]].map(([k, v]) => (
                 <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: `1px solid ${t.border}`, fontSize: 12 }}>
                   <span style={{ color: t.textDim }}>{k}</span>
                   <span style={{ fontWeight: 600, color: k === "كلمة المرور" ? "#D8A435" : k === "الإيميل" ? "#06B6D4" : t.text, fontFamily: k === "كلمة المرور" ? "monospace" : undefined }}>{v}</span>
