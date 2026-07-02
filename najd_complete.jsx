@@ -1247,7 +1247,7 @@ export default function App() {
 
     const fetchData = async () => {
       // Skip background update if we are actively syncing or a local write occurred recently
-      if (syncStatus === "syncing" || pendingSyncsRef.current > 0 || Date.now() - lastLocalWriteRef.current < 8000) {
+      if (pendingSyncsRef.current > 0 || Date.now() - lastLocalWriteRef.current < 8000) {
         return;
       }
       try {
@@ -1290,7 +1290,7 @@ export default function App() {
 
     const interval = setInterval(fetchData, 6000);
     return () => clearInterval(interval);
-  }, [user, syncStatus]);
+  }, [user]);
 
   useEffect(() => {
     localStorage.setItem('najd_players', JSON.stringify(players));
@@ -1465,13 +1465,25 @@ export default function App() {
     coachesAttendance, 
     setCoachesAttendance: (val) => {
       if (typeof val === 'function') {
+        markLocalWrite();
         setCoachesAttendance(prev => {
           const next = val(prev);
           setLastUpdate();
+          if (API_URL) {
+            const addedOrChanged = next.filter(item => {
+              const old = prev.find(x => x.id === item.id);
+              return !old || JSON.stringify(old) !== JSON.stringify(item);
+            });
+            const deleted = prev.filter(p => !next.find(n => n.id === p.id));
+            addedOrChanged.forEach(item => syncWithAPI('attendance', item));
+            deleted.forEach(item => syncWithAPI('attendance', item, true));
+          }
           return next;
         });
       } else {
         setCoachesAttendance(val);
+        setLastUpdate();
+        if (API_URL && Array.isArray(val)) val.forEach(item => syncWithAPI('attendance', item));
       }
     },
     evals, 

@@ -2,8 +2,27 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
+import crypto from 'crypto';
 
 dotenv.config();
+
+// Secure Hashing & Verification Helpers using Node's native crypto module
+function hashPassword(password) {
+  if (!password) return '';
+  const salt = crypto.randomBytes(16).toString('hex');
+  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return `${salt}:${hash}`;
+}
+
+function verifyPassword(password, storedPassword) {
+  if (!storedPassword) return false;
+  if (!storedPassword.includes(':')) {
+    return password === storedPassword; // Fallback for legacy plaintext passwords
+  }
+  const [salt, hash] = storedPassword.split(':');
+  const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+  return hash === verifyHash;
+}
 
 const app = express();
 const prisma = new PrismaClient();
@@ -42,7 +61,7 @@ app.post('/api/reset-database', async (req, res) => {
       data: {
         id: "admin",
         email: "admin@najd.sa",
-        password: "Najd@2026",
+        password: hashPassword("Najd@2026"),
         role: "ADMIN",
         name: "مدير النادي"
       }
@@ -69,7 +88,19 @@ app.post('/api/login', async (req, res) => {
       }
     });
 
-    if (user && user.password === password) {
+    if (user && verifyPassword(password, user.password)) {
+      // Auto-migrate legacy plaintext password to PBKDF2 hash on successful login
+      if (!user.password.includes(':')) {
+        try {
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { password: hashPassword(password) }
+          });
+        } catch (migrationErr) {
+          console.error("Failed to migrate legacy password:", migrationErr);
+        }
+      }
+
       // Map database user to frontend user object structure
       res.json({
         id: user.id,
@@ -111,7 +142,7 @@ app.get('/api/initial-data', async (req, res) => {
       name: par.user?.name || `ولي أمر`,
       email: par.user?.email || '',
       phone: par.user?.phone || '',
-      password: par.user?.password || ''
+      password: '••••••••'
     }));
 
     res.json({
@@ -121,6 +152,7 @@ app.get('/api/initial-data', async (req, res) => {
         ...c, 
         id: c.id, 
         userId: c.user.id,
+        password: '••••••••',
         user: undefined 
       })),
       players,
@@ -157,8 +189,8 @@ app.post('/api/players', async (req, res) => {
 
       const user = await prisma.user.upsert({
         where: { email },
-        update: { password, name: parentName },
-        create: { email, password, name: parentName, role: 'PARENT' }
+        update: { password: hashPassword(password), name: parentName },
+        create: { email, password: hashPassword(password), name: parentName, role: 'PARENT' }
       });
 
       const parent = await prisma.parent.upsert({
@@ -172,13 +204,17 @@ app.post('/api/players', async (req, res) => {
       // Parent exists — update User details if provided
       const updateData = {};
       if (p.email) updateData.email = p.email;
-      if (p.password) updateData.password = p.password;
-      updateData.name = `ولي أمر ${p.name}`;
+      if (p.password && p.password !== '••••••••') {
+        updateData.password = hashPassword(p.password);
+      }
+      // Note: We do NOT update parent's name to avoid overwriting it for parents with multiple children
 
-      await prisma.user.update({
-        where: { id: existingParent.userId },
-        data: updateData
-      });
+      if (Object.keys(updateData).length > 0) {
+        await prisma.user.update({
+          where: { id: existingParent.userId },
+          data: updateData
+        });
+      }
     }
 
     // Parse numbers safely to prevent Prisma constraint violations
@@ -306,7 +342,7 @@ app.post('/api/attendance', async (req, res) => {
         id: a.id, 
         date: new Date(a.date), 
         records: a.records,
-        group: { connect: { id: a.groupId } },
+        group: a.groupId ? { connect: { id: a.groupId } } : undefined,
         coach: a.coachId ? { connect: { id: a.coachId } } : undefined
       }
     });
@@ -320,10 +356,20 @@ app.post('/api/coaches', async (req, res) => {
   const c = req.body;
   try {
     // 1. Upsert User
+    const userUpdate = { name: c.name };
+    if (c.password && c.password !== '••••••••') {
+      userUpdate.password = hashPassword(c.password);
+    }
+
     const user = await prisma.user.upsert({
       where: { email: c.email },
-      update: { password: c.password, name: c.name },
-      create: { email: c.email, password: c.password, name: c.name, role: 'COACH' }
+      update: userUpdate,
+      create: { 
+        email: c.email, 
+        password: hashPassword(c.password || 'Coach@1234'), 
+        name: c.name, 
+        role: 'COACH' 
+      }
     });
 
     // 2. Resolve Unique Constraint on groupId in Coach table
@@ -561,11 +607,18 @@ app.post('/api/evaluations', async (req, res) => {
 app.delete('/api/players/:id', async (req, res) => {
   const { id } = req.params;
   try {
+    const player = await prisma.player.findUnique({ where: { id } });
     await prisma.$transaction([
       prisma.payment.deleteMany({ where: { playerId: id } }),
       prisma.evaluation.deleteMany({ where: { playerId: id } }),
       prisma.player.delete({ where: { id } })
     ]);
+    
+    // Clean up associated User record to prevent dangling records and unique email blockages
+    if (player && player.userId) {
+      await prisma.user.delete({ where: { id: player.userId } }).catch(() => {});
+    }
+    
     res.json({ success: true });
   } catch (e) {
     console.error("Error deleting player:", e);
@@ -593,6 +646,7 @@ app.delete('/api/groups/:id', async (req, res) => {
 app.delete('/api/coaches/:id', async (req, res) => {
   const { id } = req.params;
   try {
+    const coach = await prisma.coach.findUnique({ where: { id } });
     await prisma.$transaction([
       prisma.training.deleteMany({ where: { coachId: id } }),
       prisma.evaluation.deleteMany({ where: { coachId: id } }),
@@ -600,6 +654,12 @@ app.delete('/api/coaches/:id', async (req, res) => {
       prisma.group.updateMany({ where: { coachId: id }, data: { coachId: null } }),
       prisma.coach.delete({ where: { id } })
     ]);
+    
+    // Clean up associated User record
+    if (coach && coach.userId) {
+      await prisma.user.delete({ where: { id: coach.userId } }).catch(() => {});
+    }
+    
     res.json({ success: true });
   } catch (e) {
     console.error("Error deleting coach:", e);

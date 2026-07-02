@@ -15,6 +15,7 @@ enum Role {
   COACH
   PARENT
   PLAYER
+  SUPER_ADMIN
 }
 
 model User {
@@ -116,8 +117,8 @@ model Payment {
 model Attendance {
   id        String   @id @default(cuid())
   date      DateTime
-  groupId   String
-  group     Group    @relation(fields: [groupId], references: [id])
+  groupId   String?
+  group     Group?    @relation(fields: [groupId], references: [id])
   coachId   String?
   coach     Coach?   @relation(fields: [coachId], references: [id])
   records   Json     // { "playerId": "حاضر", ... }
