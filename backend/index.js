@@ -6,22 +6,23 @@ import crypto from 'crypto';
 
 dotenv.config();
 
-// Secure Hashing & Verification Helpers using Node's native crypto module
+// Plain text storage to ensure visual persistence in admin panel and printed invoices
 function hashPassword(password) {
-  if (!password) return '';
-  const salt = crypto.randomBytes(16).toString('hex');
-  const hash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return `${salt}:${hash}`;
+  return password || '';
 }
 
 function verifyPassword(password, storedPassword) {
   if (!storedPassword) return false;
-  if (!storedPassword.includes(':')) {
-    return password === storedPassword; // Fallback for legacy plaintext passwords
+  if (storedPassword.includes(':')) {
+    try {
+      const [salt, hash] = storedPassword.split(':');
+      const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
+      return hash === verifyHash;
+    } catch (err) {
+      console.error("Hash verification failed, trying plaintext:", err);
+    }
   }
-  const [salt, hash] = storedPassword.split(':');
-  const verifyHash = crypto.pbkdf2Sync(password, salt, 1000, 64, 'sha512').toString('hex');
-  return hash === verifyHash;
+  return password === storedPassword;
 }
 
 const app = express();
@@ -181,18 +182,6 @@ app.post('/api/login', async (req, res) => {
     });
 
     if (user && verifyPassword(password, user.password)) {
-      // Auto-migrate legacy plaintext password to PBKDF2 hash on successful login
-      if (!user.password.includes(':')) {
-        try {
-          await prisma.user.update({
-            where: { id: user.id },
-            data: { password: hashPassword(password) }
-          });
-        } catch (migrationErr) {
-          console.error("Failed to migrate legacy password:", migrationErr);
-        }
-      }
-
       // Map database user to frontend user object structure
       res.json({
         id: user.id,
@@ -234,7 +223,7 @@ app.get('/api/initial-data', async (req, res) => {
       name: par.user?.name || `ولي أمر`,
       email: par.user?.email || '',
       phone: par.user?.phone || '',
-      password: '••••••••'
+      password: par.user?.password || ''
     }));
 
     res.json({
@@ -244,7 +233,7 @@ app.get('/api/initial-data', async (req, res) => {
         ...c, 
         id: c.id, 
         userId: c.user.id,
-        password: '••••••••',
+        password: c.user?.password || '',
         user: undefined 
       })),
       players,
