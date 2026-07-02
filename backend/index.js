@@ -31,6 +31,68 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
+// --- Database Migration: Automatically Fix Arabic Coach Emails on Startup ---
+async function migrateArabicCoaches() {
+  try {
+    console.log("[Migration] Running coach Arabic email cleanup...");
+    const coaches = await prisma.coach.findMany({
+      include: { user: true }
+    });
+
+    for (const coach of coaches) {
+      const user = coach.user;
+      if (!user) continue;
+
+      // Check if email has Arabic or non-ASCII characters
+      if (/[^\x00-\x7F]/.test(user.email)) {
+        // Use phone digits or coach ID to build a clean English email
+        const phoneDigits = (user.phone || '').replace(/\D/g, '') || String(coach.id).replace(/\D/g, '') || String(Date.now()).slice(-6);
+        const cleanEmail = `coach_${phoneDigits || 'default'}@najd.sa`;
+        
+        console.log(`[Migration] Updating coach "${user.name}" email from "${user.email}" to "${cleanEmail}"`);
+        
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { email: cleanEmail }
+        });
+      }
+    }
+    console.log("[Migration] Coach Arabic email cleanup complete!");
+  } catch (err) {
+    console.error("[Migration] Error running coach Arabic email cleanup:", err);
+  }
+}
+migrateArabicCoaches();
+
+// Endpoint to trigger manually if needed
+app.post('/api/migrate-coaches', async (req, res) => {
+  try {
+    const logs = [];
+    const coaches = await prisma.coach.findMany({
+      include: { user: true }
+    });
+
+    for (const coach of coaches) {
+      const user = coach.user;
+      if (!user) continue;
+
+      if (/[^\x00-\x7F]/.test(user.email)) {
+        const phoneDigits = (user.phone || '').replace(/\D/g, '') || String(coach.id).replace(/\D/g, '') || String(Date.now()).slice(-6);
+        const cleanEmail = `coach_${phoneDigits || 'default'}@najd.sa`;
+        logs.push(`Updated coach "${user.name}" email from "${user.email}" to "${cleanEmail}"`);
+        
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { email: cleanEmail }
+        });
+      }
+    }
+    res.json({ success: true, logs });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // --- Health & Diagnostics ---
 app.get('/api/health', (req, res) => {
   const dbHost = (process.env.DATABASE_URL || '').replace(/:[^@]+@/, ':***@');
