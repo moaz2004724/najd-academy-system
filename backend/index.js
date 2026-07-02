@@ -246,7 +246,10 @@ app.post('/api/players', async (req, res) => {
     if (!existingParent) {
       // Parent doesn't exist yet — create User + Parent from player's email/phone
       const email = p.email || `najd_${p.phone || Date.now()}@najd.sa`;
-      const password = p.password || `najd_${(p.phone || '0000').slice(-4)}`;
+      let password = p.password;
+      if (!password || password === '••••••••') {
+        password = `najd_${(p.phone || '0000').slice(-4)}`;
+      }
       const parentName = `ولي أمر ${p.name}`;
 
       const user = await prisma.user.upsert({
@@ -417,18 +420,40 @@ app.post('/api/attendance', async (req, res) => {
 app.post('/api/coaches', async (req, res) => {
   const c = req.body;
   try {
-    // 1. Upsert User
-    const userUpdate = { name: c.name };
-    if (c.password && c.password !== '••••••••') {
-      userUpdate.password = hashPassword(c.password);
+    // 1. Resolve password securely (handling placeholder and empty passwords)
+    let userPassword = c.password;
+    if (!userPassword || userPassword === '••••••••') {
+      // If we are editing, try to copy the existing hashed password
+      if (c.id && c.id !== 'new') {
+        const existingCoach = await prisma.coach.findUnique({
+          where: { id: c.id },
+          include: { user: true }
+        });
+        if (existingCoach && existingCoach.user) {
+          userPassword = existingCoach.user.password;
+        }
+      }
     }
 
+    // Now format password correctly (hash if not already hashed)
+    let finalPassword = userPassword;
+    if (finalPassword && finalPassword !== '••••••••') {
+      if (!finalPassword.includes(':')) {
+        finalPassword = hashPassword(finalPassword);
+      }
+    } else {
+      // Fallback if password is still empty or placeholder
+      const phoneDigits = (c.phone || '').replace(/\D/g, '');
+      finalPassword = hashPassword(phoneDigits ? `Najd@${phoneDigits.slice(-4)}` : `Najd@${Math.floor(Math.random()*9000)+1000}`);
+    }
+
+    const userUpdate = { name: c.name, password: finalPassword };
     const user = await prisma.user.upsert({
       where: { email: c.email },
       update: userUpdate,
       create: { 
         email: c.email, 
-        password: hashPassword(c.password || 'Coach@1234'), 
+        password: finalPassword, 
         name: c.name, 
         role: 'COACH' 
       }
