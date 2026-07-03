@@ -4996,7 +4996,7 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
   const evalCoach = lastEval ? (coaches || []).find(c => c.id === lastEval.coachId) : null;
   const evalCoachName = evalCoach ? evalCoach.name : (childCoach?.name || "طاقم التدريب");
   const monthPaid = childPays.some(p => p.type === "subscription" && p.month === CUR_MONTH);
-  const totalPaid = childPays.reduce((a, p) => a + p.amount, 0);
+  const totalPaid = childPays.reduce((a, p) => a + (p.amount || PRICE_LIST[p.type] || 0), 0);
 
   const subDetails = getPlayerSubscriptionDetails(child, trainings, attendance, childPays);
   const totalPast = subDetails.attendedCount + subDetails.absentCount + subDetails.excusedCount;
@@ -5359,7 +5359,7 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
               return (
                 <div key={p.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", borderRadius: 12, background: t.bg2, fontSize: 12, border: `1px solid ${t.border}` }}>
                   <span style={{ color: t.textDim, fontWeight: 600 }}>{pt.icon} {pt.label} · {p.month}</span>
-                  <span style={{ fontWeight: 800, color: pt.color }}>{fmtMoney(p.amount)}</span>
+                  <span style={{ fontWeight: 800, color: pt.color }}>{fmtMoney(p.amount || PRICE_LIST[p.type] || 0)}</span>
                 </div>
               );
             })}

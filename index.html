@@ -31,15 +31,15 @@
           '💬': 'bi bi-chat-left-text-fill'
         };
 
-        const regex = new RegExp(`(${Object.keys(emojiMap).join('|')}|ر\\.س)`, 'g');
-
         function replaceIconsAndRiyal(node) {
           if (node.nodeType === Node.TEXT_NODE) {
             const text = node.nodeValue;
-            if (regex.test(text)) {
+            const localRegex = new RegExp(`(${Object.keys(emojiMap).join('|')}|ر\\.س)`, 'g');
+            if (localRegex.test(text)) {
+              localRegex.lastIndex = 0; // Reset lastIndex after test() to avoid skipping matched segments
               const fragment = document.createDocumentFragment();
               let lastIndex = 0;
-              text.replace(regex, (match, offset) => {
+              text.replace(localRegex, (match, offset) => {
                 if (offset > lastIndex) {
                   fragment.appendChild(document.createTextNode(text.substring(lastIndex, offset)));
                 }
