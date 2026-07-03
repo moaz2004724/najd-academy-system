@@ -302,6 +302,113 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
   };
 }
 
+/* ── INTERACTIVE PLAYER ATTENDANCE GRID ──────────────── */
+const PlayerAttendanceGrid = ({ player, subDetails, attendance, setAttendance, t }) => {
+  const [activeCell, setActiveCell] = useState(null);
+
+  const handleStatusSelect = (s, status) => {
+    // Find group attendance record
+    const existing = (attendance || []).find(a => compareDates(a.date, s.date) && a.groupId === player.groupId);
+    if (existing) {
+      const updated = {
+        ...existing,
+        records: {
+          ...existing.records,
+          [player.id]: status
+        }
+      };
+      setAttendance(prev => prev.map(x => x.id === existing.id ? updated : x));
+    } else {
+      const newAtt = {
+        id: `att${Date.now()}`,
+        date: s.date,
+        groupId: player.groupId,
+        records: {
+          [player.id]: status
+        }
+      };
+      setAttendance(prev => [...prev, newAtt]);
+    }
+    setActiveCell(null);
+  };
+
+  return (
+    <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 10 }}>
+      {subDetails.cycleSessions.map((s, idx) => {
+        const isActive = activeCell === idx;
+        const isBlurred = activeCell !== null && activeCell !== idx;
+        
+        let bgColor = t.bg2;
+        let borderCol = t.border;
+        let textColor = t.textDim;
+        let icon = "⭕";
+        
+        if (!s.isFuture) {
+          if (s.status === "حاضر") {
+            bgColor = "rgba(16,185,129,0.08)";
+            borderCol = "rgba(16,185,129,0.2)";
+            textColor = "#10B981";
+            icon = "✅";
+          } else if (s.status === "غائب") {
+            bgColor = "rgba(239,68,68,0.08)";
+            borderCol = "rgba(239,68,68,0.2)";
+            textColor = "#EF4444";
+            icon = "❌";
+          } else if (s.status === "بعذر") {
+            bgColor = "rgba(245,158,11,0.08)";
+            borderCol = "rgba(245,158,11,0.2)";
+            textColor = "#F59E0B";
+            icon = "⚠️";
+          }
+        }
+        
+        return (
+          <div key={idx} 
+            onClick={() => {
+              if (!s.isFuture && setAttendance) {
+                setActiveCell(activeCell === idx ? null : idx);
+              }
+            }}
+            style={{ 
+              background: bgColor, 
+              border: `1px solid ${borderCol}`, 
+              padding: "10px 6px", 
+              borderRadius: 14, 
+              textAlign: "center", 
+              display: "flex", 
+              flexDirection: "column", 
+              gap: 4, 
+              alignItems: "center", 
+              boxShadow: "0 2px 6px rgba(0,0,0,0.01)",
+              transition: "all 0.3s ease",
+              filter: isBlurred ? "blur(2.5px)" : "none",
+              opacity: isBlurred ? 0.35 : 1,
+              pointerEvents: isBlurred ? "none" : "auto",
+              cursor: (s.isFuture || !setAttendance) ? "default" : "pointer",
+              minHeight: 68,
+              justifyContent: "center"
+            }}
+          >
+            {isActive ? (
+              <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "center", width: "100%", height: "100%" }} onClick={(e) => e.stopPropagation()}>
+                <button title="حاضر" onClick={() => handleStatusSelect(s, "حاضر")} style={{ border: "none", background: "none", fontSize: 16, cursor: "pointer", padding: "4px 2px", outline: "none" }}>✅</button>
+                <button title="غائب" onClick={() => handleStatusSelect(s, "غائب")} style={{ border: "none", background: "none", fontSize: 16, cursor: "pointer", padding: "4px 2px", outline: "none" }}>❌</button>
+                <button title="بعذر" onClick={() => handleStatusSelect(s, "بعذر")} style={{ border: "none", background: "none", fontSize: 16, cursor: "pointer", padding: "4px 2px", outline: "none" }}>⚠️</button>
+              </div>
+            ) : (
+              <>
+                <div style={{ fontSize: 10, color: t.textFaint, fontWeight: 700 }}>حصة {idx + 1}</div>
+                <div style={{ fontSize: 14 }}>{icon}</div>
+                <div style={{ fontSize: 9, fontWeight: 800, color: textColor }}>{formatArabicDate(s.date)}</div>
+              </>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
 
 /* ═══ LOGO ═══════════════════════════════════════════ */
 const NajdLogo = ({ size = 48 }) => {
@@ -1619,7 +1726,6 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
   const tabs = [
     { id: "overview",     icon: "dashboard",    label: "نظرة عامة"   },
     { id: "teams",        icon: "teams",        label: "الفرق"        },
-    { id: "attendance",   icon: "attendance",   label: "التحضير"      },
     { id: "coaches",      icon: "coaches",      label: "المدربون"     },
     { id: "players",      icon: "players",      label: "اللاعبون"     },
     { id: "payments",     icon: "payments",     label: "المدفوعات"    },
@@ -1632,9 +1738,8 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
     <Shell title="لوحة الإدارة" subtitle="نادي نجد الرياض" color="#7C49A8" icon="dashboard" tabs={tabs} activeTab={tab} setActiveTab={setTab} onLogout={onLogout} badge="مدير عام" user={user} t={t} syncStatus={syncStatus}>
       {tab === "overview"  && <AdminOverview players={players} coaches={coaches} groups={groups} payments={payments} attendance={attendance} t={t} trainings={trainings} expenses={expenses} />}
       {tab === "teams"     && <AdminTeams groups={groups} setGroups={setGroups} coaches={coaches} players={players} t={t} trainings={trainings} attendance={attendance} payments={payments} />}
-      {tab === "attendance" && <AdminAttendance groups={groups} players={players} coaches={coaches} attendance={attendance} setAttendance={setAttendance} coachesAttendance={coachesAttendance} setCoachesAttendance={setCoachesAttendance} t={t} payments={payments} trainings={trainings} />}
       {tab === "coaches"   && <AdminCoaches coaches={coaches} setCoaches={setCoaches} groups={groups} players={players} payments={payments} t={t} />}
-      {tab === "players"   && <AdminPlayers players={players} setPlayers={setPlayers} groups={groups} parents={parents} evals={evals} coaches={coaches} t={t} trainings={trainings} attendance={attendance} payments={payments} />}
+      {tab === "players"   && <AdminPlayers players={players} setPlayers={setPlayers} groups={groups} parents={parents} evals={evals} coaches={coaches} t={t} trainings={trainings} attendance={attendance} payments={payments} setAttendance={setAttendance} />}
       {tab === "payments"  && <AdminPayments payments={payments} setPayments={setPayments} players={players} coaches={coaches} parents={parents} prices={prices} t={t} expenses={expenses} setExpenses={setExpenses} />}
       {tab === "prices"    && <AdminPrices prices={prices} setPrices={setPrices} t={t} />}
       {tab === "schedule"  && <AdminTrainings trainings={trainings} setTrainings={setTrainings} groups={groups} coaches={coaches} t={t} />}
@@ -2219,7 +2324,7 @@ function AdminCoaches({ coaches, setCoaches, groups, players, payments, t }) {
 }
 
 /* ── Admin Players ──────────────────────────────────── */
-function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t, trainings, attendance, payments }) {
+function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t, trainings, attendance, payments, setAttendance }) {
   const [sel, setSel]   = useState(null);
   const [modal, setModal] = useState(false);
   const [search, setSearch] = useState("");
@@ -2359,41 +2464,7 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 10 }}>
-                    {subDetails.cycleSessions.map((s, idx) => {
-                      let bgColor = t.bg2;
-                      let borderCol = t.border;
-                      let textColor = t.textDim;
-                      let icon = "⭕";
-                      
-                      if (!s.isFuture) {
-                        if (s.status === "حاضر") {
-                          bgColor = "rgba(16,185,129,0.08)";
-                          borderCol = "rgba(16,185,129,0.2)";
-                          textColor = "#10B981";
-                          icon = "✅";
-                        } else if (s.status === "غائب") {
-                          bgColor = "rgba(239,68,68,0.08)";
-                          borderCol = "rgba(239,68,68,0.2)";
-                          textColor = "#EF4444";
-                          icon = "❌";
-                        } else if (s.status === "بعذر") {
-                          bgColor = "rgba(245,158,11,0.08)";
-                          borderCol = "rgba(245,158,11,0.2)";
-                          textColor = "#F59E0B";
-                          icon = "⚠️";
-                        }
-                      }
-                      
-                      return (
-                        <div key={idx} style={{ background: bgColor, border: `1px solid ${borderCol}`, padding: "10px 6px", borderRadius: 14, textAlign: "center", display: "flex", flexDirection: "column", gap: 4, alignItems: "center", boxShadow: "0 2px 6px rgba(0,0,0,0.01)" }}>
-                          <div style={{ fontSize: 10, color: t.textFaint, fontWeight: 700 }}>حصة {idx + 1}</div>
-                          <div style={{ fontSize: 14 }}>{icon}</div>
-                          <div style={{ fontSize: 9, fontWeight: 800, color: textColor }}>{formatArabicDate(s.date)}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <PlayerAttendanceGrid player={p} subDetails={subDetails} attendance={attendance} setAttendance={setAttendance} t={t} />
                 </>
               )}
             </Card>
@@ -4207,7 +4278,6 @@ function CoachPortal({ user, onLogout, groups, coaches, players, parents, paymen
     { id: "home",       icon: "dashboard",  label: "الرئيسية",       perm: null },
     { id: "sessions",   icon: "schedule",   label: "التدريبات",       perm: null },
     { id: "players",    icon: "players",    label: "اللاعبون",         perm: null },
-    { id: "attendance", icon: "attendance", label: "تسجيل الحضور",    perm: "attendance" },
     { id: "eval",       icon: "trophy",     label: "التقييمات",        perm: "evals" },
     { id: "payments",   icon: "payments",   label: "المدفوعات",        perm: "payments" },
     { id: "messages",   icon: "messages",   label: "الرسائل",           perm: "messages", badge: unread || undefined },
@@ -4223,8 +4293,7 @@ function CoachPortal({ user, onLogout, groups, coaches, players, parents, paymen
     <Shell title={coach.name} subtitle={`مدرب ${group?.name || ""}`} color="#06B6D4" tabs={tabs} activeTab={tab} setActiveTab={setTab} onLogout={onLogout} badge={group?.name} user={user} t={t} syncStatus={syncStatus}>
       {tab === "home"       && <CoachHome coach={coach} group={group} groups={groups} myPlayers={myPlayers} attendance={attendance} evals={evals} trainings={trainings} t={t}/>}
       {tab === "sessions"   && <CoachSessions coach={coach} group={group} groups={groups} trainings={trainings} t={t}/>}
-      {tab === "players"    && <CoachPlayers myPlayers={myPlayers} group={group} evals={evals} t={t} trainings={trainings} attendance={attendance} payments={payments}/>}
-      {tab === "attendance" && perms.attendance !== false && <CoachAttendance coachId={user.id} group={group} myPlayers={myPlayers} attendance={attendance} setAttendance={setAttendance} t={t} payments={payments} trainings={trainings}/>}
+      {tab === "players"    && <CoachPlayers myPlayers={myPlayers} group={group} evals={evals} t={t} trainings={trainings} attendance={attendance} payments={payments} setAttendance={setAttendance}/>}
       {tab === "eval"       && perms.evals !== false      && <CoachEval coachId={user.id} myPlayers={myPlayers} evals={evals} setEvals={setEvals} t={t}/>}
       {tab === "payments"   && perms.payments !== false   && <CoachPayments coachId={user.id} myPlayers={myPlayers} payments={payments} setPayments={setPayments} prices={prices} coaches={coaches} t={t}/>}
       {tab === "messages"   && perms.messages !== false   && <Messaging messages={messages} setMessages={setMessages} meId={user.id} meName={coach.name} coaches={coaches} parents={parents} t={t} role="coach" myGroupId={coach.groupId} players={players} />}
@@ -4534,7 +4603,7 @@ function CoachSessions({ coach, group, groups, trainings, t }) {
 }
 
 /* ── Coach Players ──────────────────────────────────── */
-function CoachPlayers({ myPlayers, group, evals, t, trainings, attendance, payments }) {
+function CoachPlayers({ myPlayers, group, evals, t, trainings, attendance, payments, setAttendance }) {
   const [sel, setSel] = useState(null);
   if (sel) {
     const p  = myPlayers.find(x => x.id === sel);
@@ -4646,41 +4715,7 @@ function CoachPlayers({ myPlayers, group, evals, t, trainings, attendance, payme
                     </div>
                   </div>
 
-                  <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(100px, 1fr))", gap: 10 }}>
-                    {subDetails.cycleSessions.map((s, idx) => {
-                      let bgColor = t.bg2;
-                      let borderCol = t.border;
-                      let textColor = t.textDim;
-                      let icon = "⭕";
-                      
-                      if (!s.isFuture) {
-                        if (s.status === "حاضر") {
-                          bgColor = "rgba(16,185,129,0.08)";
-                          borderCol = "rgba(16,185,129,0.2)";
-                          textColor = "#10B981";
-                          icon = "✅";
-                        } else if (s.status === "غائب") {
-                          bgColor = "rgba(239,68,68,0.08)";
-                          borderCol = "rgba(239,68,68,0.2)";
-                          textColor = "#EF4444";
-                          icon = "❌";
-                        } else if (s.status === "بعذر") {
-                          bgColor = "rgba(245,158,11,0.08)";
-                          borderCol = "rgba(245,158,11,0.2)";
-                          textColor = "#F59E0B";
-                          icon = "⚠️";
-                        }
-                      }
-                      
-                      return (
-                        <div key={idx} style={{ background: bgColor, border: `1px solid ${borderCol}`, padding: "10px 6px", borderRadius: 14, textAlign: "center", display: "flex", flexDirection: "column", gap: 4, alignItems: "center", boxShadow: "0 2px 6px rgba(0,0,0,0.01)" }}>
-                          <div style={{ fontSize: 10, color: t.textFaint, fontWeight: 700 }}>حصة {idx + 1}</div>
-                          <div style={{ fontSize: 14 }}>{icon}</div>
-                          <div style={{ fontSize: 9, fontWeight: 800, color: textColor }}>{formatArabicDate(s.date)}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <PlayerAttendanceGrid player={p} subDetails={subDetails} attendance={attendance} setAttendance={setAttendance} t={t} />
                 </>
               )}
             </Card>
