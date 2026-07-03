@@ -41,7 +41,9 @@
               let lastIndex = 0;
               text.replace(localRegex, (match, offset) => {
                 if (offset > lastIndex) {
-                  fragment.appendChild(document.createTextNode(text.substring(lastIndex, offset)));
+                  const txtSpan = document.createElement('span');
+                  txtSpan.textContent = text.substring(lastIndex, offset);
+                  fragment.appendChild(txtSpan);
                 }
                 
                 if (match === 'ر.س') {
@@ -61,14 +63,18 @@
                     icon.style.margin = '0 4px';
                     fragment.appendChild(icon);
                   } else {
-                    fragment.appendChild(document.createTextNode(match));
+                    const txtSpan = document.createElement('span');
+                    txtSpan.textContent = match;
+                    fragment.appendChild(txtSpan);
                   }
                 }
                 lastIndex = offset + match.length;
               });
               
               if (lastIndex < text.length) {
-                fragment.appendChild(document.createTextNode(text.substring(lastIndex)));
+                const txtSpan = document.createElement('span');
+                txtSpan.textContent = text.substring(lastIndex);
+                fragment.appendChild(txtSpan);
               }
               
               node.parentNode.replaceChild(fragment, node);
