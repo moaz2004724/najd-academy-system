@@ -176,10 +176,7 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
       return false;
     }
 
-    // 1. Check if attendance was recorded for this group on this date
-    if (groupAttendance.some(a => compareDates(a.date, dateStr))) {
-      return true;
-    }
+    // 1. Group attendance should not dynamically force non-scheduled calendar days as subscription sessions
     
     // 2. Check current training schedules
     for (const tr of groupTrainings) {
