@@ -80,6 +80,36 @@ async function migrateArabicCoaches() {
 }
 migrateArabicCoaches();
 
+// --- Database Migration: Automatically Fix 0-Amount Payments on Startup ---
+async function fixPaymentAmounts() {
+  try {
+    console.log("[Migration] Running payment amounts fix...");
+    const PRICE_LIST = { subscription: 350, bus: 200, uniform: 180, bag: 95, jersey: 120 };
+    const zeroPayments = await prisma.payment.findMany({
+      where: {
+        amount: {
+          lte: 0
+        }
+      }
+    });
+
+    for (const pay of zeroPayments) {
+      const correctAmount = PRICE_LIST[pay.type] || 0;
+      if (correctAmount > 0) {
+        console.log(`[Migration] Updating payment ID ${pay.id} (${pay.type}) amount to ${correctAmount}`);
+        await prisma.payment.update({
+          where: { id: pay.id },
+          data: { amount: correctAmount }
+        });
+      }
+    }
+    console.log("[Migration] Payment amounts fix complete!");
+  } catch (err) {
+    console.error("[Migration] Error running payment amounts fix:", err);
+  }
+}
+fixPaymentAmounts();
+
 // Endpoint to trigger manually if needed
 app.post('/api/migrate-coaches', async (req, res) => {
   try {

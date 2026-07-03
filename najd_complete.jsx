@@ -576,7 +576,7 @@ const PAY_TYPES = {
   jersey:       { label: "قميص رسمي",   icon: "🏷️", color: "#10B981" },
 };
 const ATT_C = { حاضر: "#10B981", غائب: "#EF4444", بعذر: "#F59E0B" };
-const fmtMoney = n => Number(n).toLocaleString("ar-SA") + " ر.س";
+const fmtMoney = n => Number(n || 0).toLocaleString("en-US") + " ر.س";
 
 const parseExpenseNote = (expense) => {
   if (!expense || !expense.note) {
