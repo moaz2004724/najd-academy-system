@@ -622,6 +622,10 @@ const getCurMonth = () => {
   return `${AR_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 };
 const CUR_MONTH = getCurMonth();
+const getMonthFromDate = (dateStr) => {
+  const d = new Date(dateStr);
+  return `${AR_MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+};
 
 const isMonthAfterJoin = (monthStr, joinDateStr) => {
   if (!joinDateStr) return true;
@@ -2997,7 +3001,7 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
   
   const MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"].map(m => `${m} 2026`);
   
-  const empty = { playerId: players[0]?.id || "", coachId: coaches[0]?.id || "none", types: ["subscription"], month: CUR_MONTH, note: "", date: getLocalDateString(new Date()) };
+  const empty = { playerId: players[0]?.id || "", coachId: coaches[0]?.id || "none", types: ["subscription"], note: "", date: getLocalDateString(new Date()) };
   const [form, setForm] = useState(empty);
   
   const emptyExpense = { item: "", amount: "", purchaser: "", date: getLocalDateString(new Date()), month: CUR_MONTH, note: "" };
@@ -3029,7 +3033,7 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
         coachName: coach?.name || (form.coachId === "none" ? "الإدارة" : ""),
         type: form.type || form.types[0],
         amount: parseFloat(form.amount) || prices[form.type] || 0,
-        month: form.month,
+        month: getMonthFromDate(form.date),
         date: form.date,
         note: form.note
       };
@@ -3044,7 +3048,7 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
         coachName: coach?.name || (form.coachId === "none" ? "الإدارة" : ""),
         type: type,
         amount: prices[type] || 0,
-        month: form.month,
+        month: getMonthFromDate(form.date),
         date: form.date,
         note: form.note
       }));
@@ -3344,10 +3348,7 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
             )}
           </div>
 
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-            <Input label="الشهر المالي" value={form.month} onChange={v => setForm(f => ({ ...f, month: v }))} options={MONTHS} t={t}/>
-            <Input label="التاريخ" value={form.date ? (typeof form.date === "string" ? form.date.substring(0, 10) : getLocalDateString(form.date)) : ""} onChange={v => setForm(f => ({ ...f, date: v }))} type="date" t={t}/>
-          </div>
+          <Input label="التاريخ" value={form.date ? (typeof form.date === "string" ? form.date.substring(0, 10) : getLocalDateString(form.date)) : ""} onChange={v => setForm(f => ({ ...f, date: v }))} type="date" t={t}/>
           
           {form.id && (
             <Input label="المبلغ (ريال)" value={form.amount} onChange={v => setForm(f => ({ ...f, amount: v }))} type="number" t={t}/>
@@ -4866,13 +4867,13 @@ function CoachEval({ coachId, myPlayers, evals, setEvals, t }) {
 /* ── Coach Payments ─────────────────────────────────── */
 function CoachPayments({ coachId, myPlayers, payments, setPayments, prices, coaches, t }) {
   const [modal, setModal] = useState(false);
-  const [form, setForm]   = useState({ playerId: myPlayers[0]?.id || "", type: "subscription", month: CUR_MONTH, note: "", date: getLocalDateString(new Date()) });
+  const [form, setForm]   = useState({ playerId: myPlayers[0]?.id || "", type: "subscription", note: "", date: getLocalDateString(new Date()) });
   const myPays = payments.filter(p => p.coachId === coachId);
   const total  = myPays.reduce((a, p) => a + p.amount, 0);
   const save   = () => {
     const player = myPlayers.find(p => p.id === form.playerId);
     const coach  = coaches.find(c => c.id === coachId);
-    setPayments(ps => [...ps, { ...form, id: `pay${Date.now()}`, coachId, coachName: coach?.name || "", playerName: player?.name || "", amount: prices[form.type] || 0 }]);
+    setPayments(ps => [...ps, { ...form, id: `pay${Date.now()}`, coachId, coachName: coach?.name || "", playerName: player?.name || "", amount: prices[form.type] || 0, month: getMonthFromDate(form.date) }]);
     setModal(false);
   };
   return (
@@ -4912,7 +4913,7 @@ function CoachPayments({ coachId, myPlayers, payments, setPayments, prices, coac
         <Modal title="تسجيل استلام دفعة" onClose={() => setModal(false)} t={t}>
           <Input label="اللاعب" value={form.playerId} onChange={v => setForm(f => ({ ...f, playerId: v }))} options={myPlayers.map(p => ({ v: p.id, l: p.name }))} t={t}/>
           <Input label="النوع" value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} options={Object.entries(PAY_TYPES).map(([k, v]) => ({ v: k, l: `${v.icon} ${v.label} — ${prices[k]} ر.س` }))} t={t}/>
-          <Input label="الشهر" value={form.month} onChange={v => setForm(f => ({ ...f, month: v }))} placeholder={CUR_MONTH} t={t}/>
+
           <Input label="التاريخ" value={form.date} onChange={v => setForm(f => ({ ...f, date: v }))} type="date" t={t}/>
           <Input label="ملاحظة" value={form.note} onChange={v => setForm(f => ({ ...f, note: v }))} placeholder="اختياري" t={t}/>
           <div style={{ background: t.bg, borderRadius: 10, padding: "12px 14px", marginBottom: 14, fontSize: 13, color: t.text }}>
