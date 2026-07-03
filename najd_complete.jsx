@@ -191,17 +191,7 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
         }
       } else {
         if (tr.days && tr.days.includes(dayName)) {
-          // Parse creation date from tr.id if it's a client-side timestamp (e.g. tr17818...)
-          let createdDateStr = null;
-          if (tr.id && tr.id.startsWith("tr")) {
-            const ts = parseInt(tr.id.substring(2));
-            if (!isNaN(ts)) {
-              createdDateStr = getLocalDateString(new Date(ts));
-            }
-          }
-          if (!createdDateStr || dateStr >= createdDateStr) {
-            return true;
-          }
+          return true;
         }
       }
     }
@@ -1166,7 +1156,20 @@ export default function App() {
   const [attendance, setAttendance] = useState(() => JSON.parse(localStorage.getItem('najd_attendance') || '[]'));
   const [evals, setEvals] = useState(() => JSON.parse(localStorage.getItem('najd_evals') || '[]'));
   const [messages, setMessages] = useState(() => JSON.parse(localStorage.getItem('najd_messages') || '[]'));
-  const [prices, setPrices] = useState(() => JSON.parse(localStorage.getItem('najd_prices') || JSON.stringify(PRICE_LIST)));
+  const [prices, setPrices] = useState(() => {
+    try {
+      const saved = localStorage.getItem('najd_prices');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+          return { ...PRICE_LIST, ...parsed };
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return PRICE_LIST;
+  });
   const [trainings, setTrainings] = useState(() => JSON.parse(localStorage.getItem('najd_trainings') || '[]'));
   const [coachesAttendance, setCoachesAttendance] = useState(() => JSON.parse(localStorage.getItem('najd_coachesAttendance') || '[]'));
 
@@ -3032,7 +3035,7 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
         coachId: form.coachId,
         coachName: coach?.name || (form.coachId === "none" ? "الإدارة" : ""),
         type: form.type || form.types[0],
-        amount: parseFloat(form.amount) || prices[form.type] || 0,
+        amount: parseFloat(form.amount) || prices[form.type] || PRICE_LIST[form.type] || 0,
         month: getMonthFromDate(form.date),
         date: form.date,
         note: form.note
@@ -3041,13 +3044,13 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
     } else {
       // Add payment
       const newPayments = form.types.map(type => ({
-        id: `pay${Date.now()}-&type}`.replace('&type', type),
+        id: `pay${Date.now()}-${type}`,
         playerId: form.playerId,
         playerName: player?.name || "",
         coachId: form.coachId,
         coachName: coach?.name || (form.coachId === "none" ? "الإدارة" : ""),
         type: type,
-        amount: prices[type] || 0,
+        amount: prices[type] || PRICE_LIST[type] || 0,
         month: getMonthFromDate(form.date),
         date: form.date,
         note: form.note
@@ -3105,7 +3108,7 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
     setExpenses(prev => prev.filter(x => x.id !== id));
   };
 
-  const totalAmount = form.types ? form.types.reduce((sum, type) => sum + (prices[type] || 0), 0) : form.amount;
+  const totalAmount = form.types ? form.types.reduce((sum, type) => sum + (prices[type] || PRICE_LIST[type] || 0), 0) : form.amount;
 
   return (
     <div>
@@ -4873,7 +4876,7 @@ function CoachPayments({ coachId, myPlayers, payments, setPayments, prices, coac
   const save   = () => {
     const player = myPlayers.find(p => p.id === form.playerId);
     const coach  = coaches.find(c => c.id === coachId);
-    setPayments(ps => [...ps, { ...form, id: `pay${Date.now()}`, coachId, coachName: coach?.name || "", playerName: player?.name || "", amount: prices[form.type] || 0, month: getMonthFromDate(form.date) }]);
+    setPayments(ps => [...ps, { ...form, id: `pay${Date.now()}`, coachId, coachName: coach?.name || "", playerName: player?.name || "", amount: prices[form.type] || PRICE_LIST[form.type] || 0, month: getMonthFromDate(form.date) }]);
     setModal(false);
   };
   return (
@@ -4912,12 +4915,12 @@ function CoachPayments({ coachId, myPlayers, payments, setPayments, prices, coac
       {modal && (
         <Modal title="تسجيل استلام دفعة" onClose={() => setModal(false)} t={t}>
           <Input label="اللاعب" value={form.playerId} onChange={v => setForm(f => ({ ...f, playerId: v }))} options={myPlayers.map(p => ({ v: p.id, l: p.name }))} t={t}/>
-          <Input label="النوع" value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} options={Object.entries(PAY_TYPES).map(([k, v]) => ({ v: k, l: `${v.icon} ${v.label} — ${prices[k]} ر.س` }))} t={t}/>
+          <Input label="النوع" value={form.type} onChange={v => setForm(f => ({ ...f, type: v }))} options={Object.entries(PAY_TYPES).map(([k, v]) => ({ v: k, l: `${v.icon} ${v.label} — ${prices[k] || PRICE_LIST[k]} ر.س` }))} t={t}/>
 
           <Input label="التاريخ" value={form.date} onChange={v => setForm(f => ({ ...f, date: v }))} type="date" t={t}/>
           <Input label="ملاحظة" value={form.note} onChange={v => setForm(f => ({ ...f, note: v }))} placeholder="اختياري" t={t}/>
           <div style={{ background: t.bg, borderRadius: 10, padding: "12px 14px", marginBottom: 14, fontSize: 13, color: t.text }}>
-            المبلغ: <span style={{ color: "#10B981", fontWeight: 900, fontSize: 16 }}>{fmtMoney(prices[form.type] || 0)}</span>
+            المبلغ: <span style={{ color: "#10B981", fontWeight: 900, fontSize: 16 }}>{fmtMoney(prices[form.type] || PRICE_LIST[form.type] || 0)}</span>
           </div>
           <div style={{ display: "flex", gap: 10 }}><Btn onClick={save} style={{ flex: 1 }}>💾 تسجيل</Btn><Btn variant="secondary" onClick={() => setModal(false)}>إلغاء</Btn></div>
         </Modal>
