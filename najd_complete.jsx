@@ -3479,6 +3479,8 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
                 />
                 <input 
                   type="number" 
+                  dir="ltr"
+                  inputMode="decimal"
                   value={it.qty} 
                   placeholder="الكمية" 
                   onChange={v => {
@@ -3486,10 +3488,12 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
                     next[idx].qty = parseInt(v.target.value) || 0;
                     setExpForm(f => ({ ...f, items: next }));
                   }}
-                  style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${t.border}`, background: t.bg2, color: t.text, fontSize: 12, fontFamily: "'Cairo',sans-serif" }}
+                  style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${t.border}`, background: t.bg2, color: t.text, fontSize: 12, fontFamily: "'Cairo',sans-serif", textAlign: "right" }}
                 />
                 <input 
                   type="number" 
+                  dir="ltr"
+                  inputMode="decimal"
                   value={it.price} 
                   placeholder="سعر الوحدة" 
                   onChange={v => {
@@ -3497,7 +3501,7 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
                     next[idx].price = parseFloat(v.target.value) || 0;
                     setExpForm(f => ({ ...f, items: next }));
                   }}
-                  style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${t.border}`, background: t.bg2, color: t.text, fontSize: 12, fontFamily: "'Cairo',sans-serif" }}
+                  style={{ padding: "8px 10px", borderRadius: 8, border: `1px solid ${t.border}`, background: t.bg2, color: t.text, fontSize: 12, fontFamily: "'Cairo',sans-serif", textAlign: "right" }}
                 />
                 <button 
                   type="button"
