@@ -3017,7 +3017,7 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
             {isExpense ? (
               <>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a2e', marginBottom: 24 }}>توقيع القائم بالصرف</div>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a2e', marginBottom: 24 }}>توقيع المستلم</div>
                   <div style={{ width: 180, borderBottom: '1.5px solid #555', marginBottom: 6 }}></div>
                   <div style={{ fontSize: 10, color: '#999' }}>{payment.purchaser}</div>
                 </div>
