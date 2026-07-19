@@ -183,9 +183,12 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
         const periods = JSON.parse(player.freezePeriods);
         for (const period of periods) {
           if (period.start && dateStr >= period.start) {
-            const end = period.end || todayStr;
-            if (dateStr <= end) {
-              return false; // Skip training day because player is frozen during this period
+            if (period.end) {
+              if (dateStr <= period.end) {
+                return false; // Skip training day because player is frozen during this period
+              }
+            } else {
+              return false; // Active freeze to infinity - skip all training days on/after start
             }
           }
         }
