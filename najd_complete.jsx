@@ -263,31 +263,45 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
   const lastSessionDate = currentCycle ? (currentCycle.sessions[currentCycle.sessions.length - 1] || "") : "";
   
   // A cycle is expired if its last session is already in the past (strictly < todayStr)
-  const isExpired = lastSessionDate ? lastSessionDate < todayStr : false;
+  const isExpired = player.status === "مجمّد" ? false : (lastSessionDate ? lastSessionDate < todayStr : false);
   
   // Let's populate cycleSessions details for the active cycle P
   const cycleSessions = [];
-  currentCycle.sessions.forEach(dateStr => {
-    const isFuture = dateStr > todayStr;
-    let status = "حاضر";
-    if (!isFuture) {
-      const record = (attendance || []).find(a => compareDates(a.date, dateStr) && a.groupId === player.groupId);
-      if (record && record.records) {
-        const playerRecKey = Object.keys(record.records).find(k => String(k) === String(player.id));
-        if (playerRecKey) {
-          status = record.records[playerRecKey];
+  if (currentCycle && currentCycle.sessions) {
+    currentCycle.sessions.forEach(dateStr => {
+      const isFuture = dateStr > todayStr;
+      let status = "حاضر";
+      if (!isFuture) {
+        const record = (attendance || []).find(a => compareDates(a.date, dateStr) && a.groupId === player.groupId);
+        if (record && record.records) {
+          const playerRecKey = Object.keys(record.records).find(k => String(k) === String(player.id));
+          if (playerRecKey) {
+            status = record.records[playerRecKey];
+          }
         }
+      } else {
+        status = "قادم";
       }
-    } else {
-      status = "قادم";
-    }
 
-    cycleSessions.push({
-      date: dateStr,
-      isFuture,
-      status
+      cycleSessions.push({
+        date: dateStr,
+        isFuture,
+        status
+      });
     });
-  });
+  }
+
+  // Pad the cycleSessions to 12 if currently frozen
+  if (player.status === "مجمّد") {
+    while (cycleSessions.length < 12) {
+      cycleSessions.push({
+        date: null,
+        isFuture: true,
+        status: "مجمّد",
+        isFrozen: true
+      });
+    }
+  }
 
   let attendedCount = 0;
   let absentCount = 0;
@@ -295,7 +309,9 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
   let remainingCount = 0;
 
   cycleSessions.forEach(s => {
-    if (s.isFuture) {
+    if (s.isFrozen) {
+      remainingCount++;
+    } else if (s.isFuture) {
       remainingCount++;
     } else {
       if (s.status === "حاضر") attendedCount++;
@@ -358,7 +374,12 @@ const PlayerAttendanceGrid = ({ player, subDetails, attendance, setAttendance, t
         let textColor = t.textDim;
         let icon = "⭕";
         
-        if (!s.isFuture) {
+        if (s.isFrozen) {
+          bgColor = "rgba(59,130,246,0.08)";
+          borderCol = "rgba(59,130,246,0.2)";
+          textColor = "#3B82F6";
+          icon = "❄️";
+        } else if (!s.isFuture) {
           if (s.status === "حاضر") {
             bgColor = "rgba(16,185,129,0.08)";
             borderCol = "rgba(16,185,129,0.2)";
@@ -380,7 +401,7 @@ const PlayerAttendanceGrid = ({ player, subDetails, attendance, setAttendance, t
         return (
           <div key={idx} 
             onClick={() => {
-              if (!s.isFuture && setAttendance) {
+              if (!s.isFuture && !s.isFrozen && setAttendance) {
                 setActiveCell(activeCell === idx ? null : idx);
               }
             }}
@@ -399,7 +420,7 @@ const PlayerAttendanceGrid = ({ player, subDetails, attendance, setAttendance, t
               filter: isBlurred ? "blur(2.5px)" : "none",
               opacity: isBlurred ? 0.35 : 1,
               pointerEvents: isBlurred ? "none" : "auto",
-              cursor: (s.isFuture || !setAttendance) ? "default" : "pointer",
+              cursor: (s.isFuture || s.isFrozen || !setAttendance) ? "default" : "pointer",
               minHeight: 68,
               justifyContent: "center"
             }}
@@ -414,7 +435,7 @@ const PlayerAttendanceGrid = ({ player, subDetails, attendance, setAttendance, t
               <>
                 <div style={{ fontSize: 10, color: t.textFaint, fontWeight: 700 }}>حصة {idx + 1}</div>
                 <div style={{ fontSize: 14 }}>{icon}</div>
-                <div style={{ fontSize: 9, fontWeight: 800, color: textColor }}>{formatArabicDate(s.date)}</div>
+                <div style={{ fontSize: 9, fontWeight: 800, color: textColor }}>{s.isFrozen ? "مجمّد" : formatArabicDate(s.date)}</div>
               </>
             )}
           </div>
@@ -645,6 +666,37 @@ const AnimIcon = ({ type, size = 20, color = "#C4B5FD" }) => {
         `}</style>
         <g className="moon-icon">
           <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" fill={color} opacity=".9"/>
+        </g>
+      </svg>
+    ),
+    freeze: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <style>{`
+          @keyframes frz-spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+          .frz-icon{animation:frz-spin 12s linear infinite;transform-origin:12px 12px}
+        `}</style>
+        <g className="frz-icon" stroke={color} strokeWidth="1.8" strokeLinecap="round">
+          <line x1="12" y1="2" x2="12" y2="22" />
+          <line x1="2" y1="12" x2="22" y2="12" />
+          <line x1="5" y1="5" x2="19" y2="19" />
+          <line x1="5" y1="19" x2="19" y2="5" />
+          <path d="M12 5l-2-2M12 5l2-2" />
+          <path d="M12 19l-2 2M12 19l2 2" />
+          <path d="M5 12l-2-2M5 12l-2 2" />
+          <path d="M19 12l2-2M19 12l2 2" />
+        </g>
+      </svg>
+    ),
+    unfreeze: (
+      <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+        <style>{`
+          @keyframes unf-pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.1)}}
+          .unf-icon{animation:unf-pulse 2s ease-in-out infinite;transform-origin:12px 12px}
+        `}</style>
+        <g className="unf-icon" stroke={color} strokeWidth="1.8" strokeLinecap="round" strokeJoin="round">
+          <path d="M12 2c0 0-4 4.5-4 8.5C8 13 9.8 15 12 15s4-2 4-4.5c0-4-4-8.5-4-8.5z" fill={`${color}20`} />
+          <path d="M12 6c0 0-2 2-2 4 0 1.1.9 2 2 2s2-.9 2-2c0-2-2-4-2-4z" />
+          <path d="M12 21h.01" strokeWidth="3" />
         </g>
       </svg>
     ),
@@ -2423,49 +2475,24 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
             </Btn>
             {p.status === "مجمّد" ? (
               <Btn 
-                style={{ width: "100%", marginTop: 8, background: "#10B981" }} 
+                style={{ width: "100%", marginTop: 8, background: "#10B981", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }} 
                 onClick={() => {
-                  let periods = [];
-                  if (p.freezePeriods) {
-                    try {
-                      periods = JSON.parse(p.freezePeriods);
-                    } catch (e) {
-                      console.error("Error parsing periods:", e);
-                    }
-                  }
-                  const today = new Date();
-                  const yesterday = new Date(today);
-                  yesterday.setDate(yesterday.getDate() - 1);
-                  const yesterdayStr = getLocalDateString(yesterday);
-                  
-                  const updatedPeriods = periods.map(per => {
-                    if (!per.end) {
-                      return { ...per, end: yesterdayStr };
-                    }
-                    return per;
-                  });
-                  
-                  const updatedPlayer = {
-                    ...p,
-                    status: "نشط",
-                    freezePeriods: JSON.stringify(updatedPeriods)
-                  };
-                  
-                  setPlayers(ps => ps.map(x => x.id === p.id ? updatedPlayer : x));
+                  setFreezeStartDate(getLocalDateString(new Date()));
+                  setModal("unfreeze");
                 }}
               >
-                🔥 إلغاء التجميد / عودة اللاعب
+                <AnimIcon type="unfreeze" size={14} color="#fff" /> إلغاء التجميد / عودة اللاعب
               </Btn>
             ) : (
               p.status !== "موقوف" && (
                 <Btn 
-                  style={{ width: "100%", marginTop: 8, background: "#3B82F6" }} 
+                  style={{ width: "100%", marginTop: 8, background: "#3B82F6", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }} 
                   onClick={() => {
                     setFreezeStartDate(getLocalDateString(new Date()));
                     setModal("freeze");
                   }}
                 >
-                  ❄️ تجميد الاشتراك
+                  <AnimIcon type="freeze" size={14} color="#fff" /> تجميد الاشتراك
                 </Btn>
               )
             )}
@@ -2605,9 +2632,64 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
                     setPlayers(ps => ps.map(x => x.id === p.id ? updatedPlayer : x));
                     setModal(null);
                   }} 
-                  style={{ flex: 1, background: "#3B82F6" }}
+                  style={{ flex: 1, background: "#3B82F6", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
                 >
-                  ❄️ تأكيد التجميد
+                  <AnimIcon type="freeze" size={14} color="#fff" /> تأكيد التجميد
+                </Btn>
+                <Btn variant="secondary" onClick={() => setModal(null)}>إلغاء</Btn>
+              </div>
+            </div>
+          </Modal>
+        )}
+        {modal === "unfreeze" && (
+          <Modal title="إنهاء تجميد الاشتراك" onClose={() => setModal(null)} t={t}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ fontSize: 13, color: t.textDim, lineHeight: 1.5 }}>
+                سيتم استئناف احتساب الحصص التدريبية للاعب بدءاً من تاريخ العودة المحدد.
+              </div>
+              <Input 
+                label="تاريخ عودة اللاعب" 
+                type="date" 
+                value={freezeStartDate} 
+                onChange={v => setFreezeStartDate(v)} 
+                t={t}
+              />
+              <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+                <Btn 
+                  onClick={() => {
+                    let periods = [];
+                    if (p.freezePeriods) {
+                      try {
+                        periods = JSON.parse(p.freezePeriods);
+                      } catch (e) {
+                        console.error("Error parsing periods:", e);
+                      }
+                    }
+                    
+                    const returnDateObj = new Date(freezeStartDate);
+                    const dayBeforeReturn = new Date(returnDateObj);
+                    dayBeforeReturn.setDate(dayBeforeReturn.getDate() - 1);
+                    const dayBeforeReturnStr = getLocalDateString(dayBeforeReturn);
+                    
+                    const updatedPeriods = periods.map(per => {
+                      if (!per.end) {
+                        return { ...per, end: dayBeforeReturnStr };
+                      }
+                      return per;
+                    });
+                    
+                    const updatedPlayer = {
+                      ...p,
+                      status: "نشط",
+                      freezePeriods: JSON.stringify(updatedPeriods)
+                    };
+                    
+                    setPlayers(ps => ps.map(x => x.id === p.id ? updatedPlayer : x));
+                    setModal(null);
+                  }} 
+                  style={{ flex: 1, background: "#10B981", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+                >
+                  <AnimIcon type="unfreeze" size={14} color="#fff" /> تأكيد العودة
                 </Btn>
                 <Btn variant="secondary" onClick={() => setModal(null)}>إلغاء</Btn>
               </div>
