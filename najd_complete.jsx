@@ -5457,7 +5457,7 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }} className="s2">
         <StatCard label="الأهداف"   counter={child.goals || 0}         icon="⚽" color="#EF4444" t={t}/>
         <StatCard label="التمريرات" counter={child.assists || 0}       icon="🎯" color="#10B981" t={t}/>
-        <StatCard label="حضور الاشتراك" counter={`${subDetails.attendedCount} / 12`} icon="📅" color="#7C49A8" t={t}/>
+        <StatCard label="حضور الاشتراك" value={`${subDetails.attendedCount} / 12`} icon="📅" color="#7C49A8" t={t}/>
         <StatCard label="التقييم"   counter={lastEval ? child.score : undefined} value={lastEval ? undefined : "لم يتم التقييم"} icon="⭐" color="#F59E0B" t={t}/>
       </div>
 
@@ -5514,7 +5514,12 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
                 let textColor = t.textDim;
                 let icon = "⭕";
                 
-                if (!s.isFuture) {
+                if (s.isFrozen) {
+                  bgColor = "rgba(59,130,246,0.08)";
+                  borderCol = "rgba(59,130,246,0.2)";
+                  textColor = "#3B82F6";
+                  icon = "❄️";
+                } else if (!s.isFuture) {
                   if (s.status === "حاضر") {
                     bgColor = "rgba(16,185,129,0.08)";
                     borderCol = "rgba(16,185,129,0.2)";
@@ -5537,7 +5542,7 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
                   <div key={idx} style={{ background: bgColor, border: `1px solid ${borderCol}`, padding: "12px 8px", borderRadius: 16, textAlign: "center", display: "flex", flexDirection: "column", gap: 5, alignItems: "center", boxShadow: "0 2px 8px rgba(0,0,0,0.01)" }}>
                     <div style={{ fontSize: 11, color: t.textFaint, fontWeight: 700 }}>حصة {idx + 1}</div>
                     <div style={{ fontSize: 16 }}>{icon}</div>
-                    <div style={{ fontSize: 10, fontWeight: 800, color: textColor }}>{formatArabicDate(s.date)}</div>
+                    <div style={{ fontSize: 10, fontWeight: 800, color: textColor }}>{s.isFrozen ? "مجمّد" : formatArabicDate(s.date)}</div>
                   </div>
                 );
               })}
