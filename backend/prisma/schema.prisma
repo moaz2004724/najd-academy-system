@@ -79,6 +79,7 @@ model Player {
   goals         Int      @default(0)
   assists       Int      @default(0)
   attendancePct Int      @default(90)
+  freezePeriods String?
 
   groupId       String
   group         Group    @relation(fields: [groupId], references: [id])

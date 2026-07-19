@@ -106,7 +106,8 @@ const getGroupScheduledDates = (groupId, trainings, daysBack = 45, daysForward =
 };
 
 const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) => {
-  const joinDate = player ? (player.joinDate || getLocalDateString(new Date())) : "";
+  const todayStr = getLocalDateString(new Date());
+  const joinDate = player ? (player.joinDate || todayStr) : "";
   if (!player || !player.groupId || !joinDate) {
     return {
       cycleSessions: [],
@@ -176,8 +177,23 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
       return false;
     }
 
-    // 1. Group attendance should not dynamically force non-scheduled calendar days as subscription sessions
-    
+    // Check if the date falls within any freeze period of the player
+    if (player.freezePeriods) {
+      try {
+        const periods = JSON.parse(player.freezePeriods);
+        for (const period of periods) {
+          if (period.start && dateStr >= period.start) {
+            const end = period.end || todayStr;
+            if (dateStr <= end) {
+              return false; // Skip training day because player is frozen during this period
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Error parsing freeze periods:", e);
+      }
+    }
+
     // 2. Check current training schedules
     for (const tr of groupTrainings) {
       if (tr.type === "match") continue;
@@ -204,7 +220,6 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
 
   const cycles = [];
   let lastCycleEndDate = null;
-  const todayStr = getLocalDateString(new Date());
 
   for (let c = 1; c <= P; c++) {
     const pay = sortedSubPays[c - 1];
@@ -1754,11 +1769,12 @@ function AdminOverview({ players, coaches, groups, payments, attendance = [], t,
   const total   = payments.reduce((a, p) => a + p.amount, 0);
   const month   = payments.filter(p => p.month === CUR_MONTH).reduce((a, p) => a + p.amount, 0);
   const active  = players.filter(p => {
-    if (p.status === "موقوف") return false;
+    if (p.status === "موقوف" || p.status === "مجمّد") return false;
     const sd = getPlayerSubscriptionDetails(p, trainings, attendance, payments);
     return !sd.isUnpaid && !sd.isExpired;
   }).length;
   const unpaid  = players.filter(p => {
+    if (p.status === "موقوف" || p.status === "مجمّد") return false;
     const sd = getPlayerSubscriptionDetails(p, trainings, attendance, payments);
     return sd.isUnpaid || sd.isExpired;
   }).length;
@@ -2039,8 +2055,8 @@ function AdminTeams({ groups, setGroups, coaches, players, t, trainings, attenda
                     <td style={{ padding: "11px 12px" }}>
                       {(() => {
                         const sd = getPlayerSubscriptionDetails(p, trainings, attendance, payments);
-                        const status = (p.status === "موقوف") ? "موقوف" : (sd.isUnpaid || sd.isExpired) ? "غير نشط" : "نشط";
-                        return <Chip text={status} color={status === "نشط" ? "#10B981" : "#EF4444"}/>;
+                        const status = (p.status === "موقوف") ? "موقوف" : (p.status === "مجمّد") ? "مجمّد" : (sd.isUnpaid || sd.isExpired) ? "غير نشط" : "نشط";
+                        return <Chip text={status} color={status === "نشط" ? "#10B981" : status === "مجمّد" ? "#3B82F6" : "#EF4444"}/>;
                       })()}
                     </td>
                   </tr>
@@ -2330,6 +2346,7 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
   const [search, setSearch] = useState("");
   const emptyP = { name: "", age: "", groupId: groups[0]?.id || "", phone: "", position: "مهاجم", status: "نشط", score: 80, speed: 75, stamina: 75, technique: 75, teamwork: 75, goals: 0, assists: 0, attendancePct: 90, weight: "", height: "", parentId: "__new__", email: "", password: "" };
   const [form, setForm] = useState(emptyP);
+  const [freezeStartDate, setFreezeStartDate] = useState("");
   const filtered = players.filter(p => p.name.includes(search) || (groups.find(g => g.id === p.groupId)?.name || "").includes(search));
 
   if (sel) {
@@ -2363,29 +2380,95 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
               <div style={{ fontWeight: 800, fontSize: 15, marginTop: 12, marginBottom: 6, color: t.text }}>{p.name}</div>
               <Chip text={p.position} color={g?.color || "#7C49A8"}/>
             </div>
-            {[
-              ["العمر", `${p.age || '—'} سنة`],
-              ["الطول", `${p.height || '—'} سم`],
-              ["الوزن", `${p.weight || '—'} كجم`],
-              ["الأهداف", p.goals || 0],
-              ["التمريرات", p.assists || 0],
-              ["حضور الاشتراك الحالي", `${subDetails.attendedCount} / 12 حصة`],
-              ["نسبة حضور الدورة", `${computedAttendancePct}%`],
-              ["المجموعة", g?.name || "—"],
-              ["ولي الأمر", par?.name || "—"],
-              ["تاريخ التسجيل", formatArabicDate(p.joinDate)],
-              ["تجديد الاشتراك", latestRenewalDate],
-              ["إيميل الدخول", par?.email || p.email || "—"],
-              ["كلمة المرور", (par?.password && par.password !== '••••••••' && !par.password.includes(':') && par.password.length <= 20) ? par.password : (p.password && p.password !== '••••••••' && !p.password.includes(':') && p.password.length <= 20) ? p.password : ((par?.phone || p.phone) ? `najd_${(par?.phone || p.phone).replace(/\D/g, '').slice(-4)}` : `najd_${(p.id || '').replace(/\D/g, '').slice(-4) || '0000'}`)]
-            ].map(([k, v]) => (
-              <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${t.border}`, fontSize: 12 }}>
-                <span style={{ color: t.textDim }}>{k}</span>
-                <span style={{ fontWeight: 600, color: (k === "كلمة المرور" && v !== "كلمة مرور ولي الأمر الحالية") ? "#D8A435" : k === "إيميل الدخول" ? "#06B6D4" : t.text, fontFamily: k === "كلمة المرور" ? "monospace" : undefined, fontSize: k === "كلمة المرور" ? 11 : 12 }}>{v}</span>
-              </div>
-            ))}
+            {(() => {
+              const rows = [
+                ["العمر", `${p.age || '—'} سنة`],
+                ["الطول", `${p.height || '—'} سم`],
+                ["الوزن", `${p.weight || '—'} كجم`],
+                ["الأهداف", p.goals || 0],
+                ["التمريرات", p.assists || 0],
+                ["حضور الاشتراك الحالي", `${subDetails.attendedCount} / 12 حصة`],
+                ["نسبة حضور الدورة", `${computedAttendancePct}%`],
+                ["المجموعة", g?.name || "—"],
+                ["ولي الأمر", par?.name || "—"],
+                ["تاريخ التسجيل", formatArabicDate(p.joinDate)],
+                ["تجديد الاشتراك", latestRenewalDate],
+                ["إيميل الدخول", par?.email || p.email || "—"],
+                ["كلمة المرور", (par?.password && par.password !== '••••••••' && !par.password.includes(':') && par.password.length <= 20) ? par.password : (p.password && p.password !== '••••••••' && !p.password.includes(':') && p.password.length <= 20) ? p.password : ((par?.phone || p.phone) ? `najd_${(par?.phone || p.phone).replace(/\D/g, '').slice(-4)}` : `najd_${(p.id || '').replace(/\D/g, '').slice(-4) || '0000'}`)]
+              ];
+              if (p.freezePeriods) {
+                try {
+                  const periods = JSON.parse(p.freezePeriods);
+                  if (periods.length > 0) {
+                    const disp = periods.map(per => {
+                      const st = formatArabicDate(per.start);
+                      const en = per.end ? formatArabicDate(per.end) : "مستمر";
+                      return `${st} ← ${en}`;
+                    }).join(" | ");
+                    rows.push(["فترات التجميد", disp]);
+                  }
+                } catch (e) {
+                  console.error("Error formatting freeze periods:", e);
+                }
+              }
+              return rows.map(([k, v]) => (
+                <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "6px 0", borderBottom: `1px solid ${t.border}`, fontSize: 12 }}>
+                  <span style={{ color: t.textDim }}>{k}</span>
+                  <span style={{ fontWeight: 600, color: (k === "كلمة المرور" && v !== "كلمة مرور ولي الأمر الحالية") ? "#D8A435" : k === "إيميل الدخول" ? "#06B6D4" : t.text, fontFamily: k === "كلمة المرور" ? "monospace" : undefined, fontSize: k === "كلمة المرور" ? 11 : 12 }}>{v}</span>
+                </div>
+              ));
+            })()}
             <Btn style={{ width: "100%", marginTop: 14 }} onClick={() => { setForm({ ...p, email: par?.email || "", password: par?.password || "" }); setModal("edit"); }}>
               <AnimIcon type="edit" size={14} color="#fff" /> تعديل
             </Btn>
+            {p.status === "مجمّد" ? (
+              <Btn 
+                style={{ width: "100%", marginTop: 8, background: "#10B981" }} 
+                onClick={() => {
+                  let periods = [];
+                  if (p.freezePeriods) {
+                    try {
+                      periods = JSON.parse(p.freezePeriods);
+                    } catch (e) {
+                      console.error("Error parsing periods:", e);
+                    }
+                  }
+                  const today = new Date();
+                  const yesterday = new Date(today);
+                  yesterday.setDate(yesterday.getDate() - 1);
+                  const yesterdayStr = getLocalDateString(yesterday);
+                  
+                  const updatedPeriods = periods.map(per => {
+                    if (!per.end) {
+                      return { ...per, end: yesterdayStr };
+                    }
+                    return per;
+                  });
+                  
+                  const updatedPlayer = {
+                    ...p,
+                    status: "نشط",
+                    freezePeriods: JSON.stringify(updatedPeriods)
+                  };
+                  
+                  setPlayers(ps => ps.map(x => x.id === p.id ? updatedPlayer : x));
+                }}
+              >
+                🔥 إلغاء التجميد / عودة اللاعب
+              </Btn>
+            ) : (
+              p.status !== "موقوف" && (
+                <Btn 
+                  style={{ width: "100%", marginTop: 8, background: "#3B82F6" }} 
+                  onClick={() => {
+                    setFreezeStartDate(getLocalDateString(new Date()));
+                    setModal("freeze");
+                  }}
+                >
+                  ❄️ تجميد الاشتراك
+                </Btn>
+              )
+            )}
           </Card>
           <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
             <Card t={t} style={{ padding: 22 }}>
@@ -2470,14 +2553,14 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
             </Card>
           </div>
         </div>
-        {modal && (
+        {modal === "edit" && (
           <Modal title="تعديل بيانات اللاعب" onClose={() => setModal(null)} wide t={t}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: "0 14px" }}>
               {[["الاسم", "name"], ["الهاتف", "phone"], ["الإيميل", "email"], ["كلمة المرور", "password"]].map(([l, f]) => (
                 <div key={f} style={{ flex: "1 1 calc(50% - 7px)" }}><Input label={l} value={form[f] || ""} onChange={v => setForm(x => ({ ...x, [f]: v }))} t={t}/></div>
               ))}
               <div style={{ flex: "1 1 calc(50% - 7px)" }}><Input label="المجموعة" value={form.groupId} onChange={v => setForm(x => ({ ...x, groupId: v }))} options={groups.map(g => ({ v: g.id, l: g.name }))} t={t}/></div>
-              <div style={{ flex: "1 1 calc(50% - 7px)" }}><Input label="الحالة" value={form.status} onChange={v => setForm(x => ({ ...x, status: v }))} options={["نشط", "موقوف"]} t={t}/></div>
+              <div style={{ flex: "1 1 calc(50% - 7px)" }}><Input label="الحالة" value={form.status} onChange={v => setForm(x => ({ ...x, status: v }))} options={["نشط", "موقوف", "مجمّد"]} t={t}/></div>
               <div style={{ flex: "1 1 calc(50% - 7px)" }}><Input label="المركز" value={form.position} onChange={v => setForm(x => ({ ...x, position: v }))} options={["مهاجم", "جناح أيمن", "جناح أيسر", "وسط", "مدافع", "حارس مرمى"]} t={t}/></div>
               <div style={{ flex: "1 1 calc(50% - 7px)" }}><Input label="العمر" value={form.age} onChange={v => setForm(x => ({ ...x, age: +v }))} type="number" t={t}/></div>
               <div style={{ flex: "1 1 calc(50% - 7px)" }}><Input label="الطول (سم)" value={form.height} onChange={v => setForm(x => ({ ...x, height: +v }))} type="number" t={t}/></div>
@@ -2486,6 +2569,48 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
             <div style={{ display: "flex", gap: 10 }}>
               <Btn onClick={() => { setPlayers(ps => ps.map(x => x.id === form.id ? { ...form } : x)); setModal(null); }} style={{ flex: 1 }}>💾 حفظ</Btn>
               <Btn variant="secondary" onClick={() => setModal(null)}>إلغاء</Btn>
+            </div>
+          </Modal>
+        )}
+        {modal === "freeze" && (
+          <Modal title="تجميد اشتراك اللاعب" onClose={() => setModal(null)} t={t}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              <div style={{ fontSize: 13, color: t.textDim, lineHeight: 1.5 }}>
+                سيتم إيقاف احتساب الحصص التدريبية للاعب مؤقتاً ابتداءً من التاريخ المحدد. عند عودة اللاعب وإلغاء التجميد، سيتم ترحيل الحصص المتبقية تلقائياً.
+              </div>
+              <Input 
+                label="تاريخ بدء التجميد" 
+                type="date" 
+                value={freezeStartDate} 
+                onChange={v => setFreezeStartDate(v)} 
+                t={t}
+              />
+              <div style={{ display: "flex", gap: 10, marginTop: 10 }}>
+                <Btn 
+                  onClick={() => {
+                    let periods = [];
+                    if (p.freezePeriods) {
+                      try {
+                        periods = JSON.parse(p.freezePeriods);
+                      } catch (e) {
+                        console.error("Error parsing periods:", e);
+                      }
+                    }
+                    periods.push({ start: freezeStartDate, end: null });
+                    const updatedPlayer = {
+                      ...p,
+                      status: "مجمّد",
+                      freezePeriods: JSON.stringify(periods)
+                    };
+                    setPlayers(ps => ps.map(x => x.id === p.id ? updatedPlayer : x));
+                    setModal(null);
+                  }} 
+                  style={{ flex: 1, background: "#3B82F6" }}
+                >
+                  ❄️ تأكيد التجميد
+                </Btn>
+                <Btn variant="secondary" onClick={() => setModal(null)}>إلغاء</Btn>
+              </div>
             </div>
           </Modal>
         )}
@@ -2545,8 +2670,8 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
                   </td>
                   <td style={{ padding: "11px 14px" }}>
                     {(() => {
-                      const status = (p.status === "موقوف") ? "موقوف" : (subDetails.isUnpaid || subDetails.isExpired) ? "غير نشط" : "نشط";
-                      return <Chip text={status} color={status === "نشط" ? "#10B981" : "#EF4444"}/>;
+                      const status = (p.status === "موقوف") ? "موقوف" : (p.status === "مجمّد") ? "مجمّد" : (subDetails.isUnpaid || subDetails.isExpired) ? "غير نشط" : "نشط";
+                      return <Chip text={status} color={status === "نشط" ? "#10B981" : status === "مجمّد" ? "#3B82F6" : "#EF4444"}/>;
                     })()}
                   </td>
                   <td style={{ padding: "11px 14px", fontSize: 13, fontWeight: 800, color: p.score > 80 ? "#10B981" : p.score > 60 ? "#F59E0B" : "#EF4444" }}>{p.score}</td>
@@ -3858,6 +3983,7 @@ function AdminReports({ players, coaches, groups, payments, attendance, evals, t
             "المدرب": coach?.name || "—",
             "الحالة": (() => {
               if (p.status === "موقوف") return "موقوف";
+              if (p.status === "مجمّد") return "مجمّد";
               const sd = getPlayerSubscriptionDetails(p, trainings, attendance, payments);
               return (sd.isUnpaid || sd.isExpired) ? "غير نشط" : "نشط";
             })(),
@@ -5223,8 +5349,8 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
                 <Chip text={childGroup?.name || "—"} color="#06B6D4"/>
                 <Chip text={`مدرب: ${childCoach?.name || "—"}`} color="#7C49A8"/>
                 {(() => {
-                  const status = (child.status === "موقوف") ? "موقوف" : (subDetails.isUnpaid || subDetails.isExpired) ? "غير نشط" : "نشط";
-                  return <Chip text={status} color={status === "نشط" ? "#10B981" : "#EF4444"}/>;
+                  const status = (child.status === "موقوف") ? "موقوف" : (child.status === "مجمّد") ? "مجمّد" : (subDetails.isUnpaid || subDetails.isExpired) ? "غير نشط" : "نشط";
+                  return <Chip text={status} color={status === "نشط" ? "#10B981" : status === "مجمّد" ? "#3B82F6" : "#EF4444"}/>;
                 })()}
               </div>
             </div>
