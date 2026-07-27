@@ -1356,7 +1356,7 @@ function PublicInvoiceView({ paymentId, payments, players, parents, t, dataLoade
   const todayStr = payment.date ? (typeof payment.date === "string" ? payment.date.substring(0, 10) : getLocalDateString(payment.date)) : "";
 
   return (
-    <div style={{ background: "#120e28", minHeight: "100vh", padding: "20px 10px", fontFamily: "'Cairo', sans-serif" }}>
+    <div className="public-invoice-wrapper" style={{ background: "#120e28", minHeight: "100vh", padding: "20px 10px", fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
       {/* Standalone Action Bar */}
       <div className="action-bar-public" style={{
         maxWidth: 794, margin: "0 auto 16px",
@@ -1366,14 +1366,15 @@ function PublicInvoiceView({ paymentId, payments, players, parents, t, dataLoade
         justifyContent: "space-between", gap: 10, flexWrap: "wrap",
         boxShadow: "0 10px 30px rgba(0,0,0,0.3)"
       }}>
-        <span style={{ color: "#fff", fontWeight: 800, fontSize: 13 }}>🧾 فاتورة الاستلام الإلكترونية — {payment.playerName}</span>
+        <span style={{ color: "#fff", fontWeight: 800, fontSize: 13, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>فاتورة الاستلام الإلكترونية — {payment.playerName}</span>
         <button onClick={() => window.print()} style={{
           padding: "8px 18px", borderRadius: 8, border: "none",
           background: "#FBBF24", color: "#1a1a2e",
           fontSize: 12, fontWeight: 800, cursor: "pointer",
-          fontFamily: "'Cairo',sans-serif", display: "inline-flex", alignItems: "center", gap: 6
+          fontFamily: "'Cairo', sans-serif", display: "inline-flex", alignItems: "center", gap: 6,
+          letterSpacing: "normal"
         }}>
-          🖨️ طباعة أو حفظ PDF
+          طباعة أو حفظ PDF
         </button>
       </div>
 
@@ -1382,11 +1383,14 @@ function PublicInvoiceView({ paymentId, payments, players, parents, t, dataLoade
         maxWidth: 794, margin: "0 auto", background: "#ffffff",
         borderRadius: 16, overflow: "hidden", color: "#1a1a2e",
         boxShadow: "0 20px 50px rgba(0,0,0,0.5)",
-        direction: "rtl"
+        direction: "rtl",
+        fontFamily: "'Cairo', sans-serif",
+        letterSpacing: "normal"
       }}>
         <style dangerouslySetInnerHTML={{__html: `
           @media print {
-            body { background: #fff !important; }
+            body, html { background: #fff !important; }
+            .public-invoice-wrapper { background: #fff !important; padding: 0 !important; min-height: 0 !important; }
             .action-bar-public { display: none !important; }
             .print-area-invoice { box-shadow: none !important; margin: 0 !important; max-width: 100% !important; border-radius: 0 !important; }
             * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
@@ -1394,15 +1398,15 @@ function PublicInvoiceView({ paymentId, payments, players, parents, t, dataLoade
         `}} />
 
         {/* ── Header ── */}
-        <div style={{ padding: '28px 40px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={{ minWidth: 120, textAlign: 'right' }}>
-            <div style={{ fontSize: 13, fontWeight: 900, color: '#6D28D9' }}>{invoiceNum}</div>
-            <div style={{ fontSize: 10, color: '#aaa', marginTop: 2 }}>رقم الفاتورة</div>
+        <div style={{ padding: '28px 40px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
+          <div style={{ minWidth: 120, textAlign: 'right', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
+            <div style={{ fontSize: 13, fontWeight: 900, color: '#6D28D9', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>{invoiceNum}</div>
+            <div style={{ fontSize: 10, color: '#aaa', marginTop: 2, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>رقم الفاتورة</div>
           </div>
-          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
+          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
             <img src={logoImg} alt="نادي نجد" style={{ width: 70, height: 70, objectFit: 'contain' }}/>
-            <div style={{ fontSize: 22, fontWeight: 900, color: '#1a1a2e', letterSpacing: '-0.3px', lineHeight: 1.2 }}>نادي نجد الرياض</div>
-            <div style={{ fontSize: 12, color: '#777' }}>أكاديمية كرة القدم</div>
+            <div style={{ fontSize: 22, fontWeight: 900, color: '#1a1a2e', lineHeight: 1.2, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>نادي نجد الرياض</div>
+            <div style={{ fontSize: 12, color: '#777', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>أكاديمية كرة القدم</div>
           </div>
           <div style={{ minWidth: 120 }}></div>
         </div>
@@ -1411,59 +1415,59 @@ function PublicInvoiceView({ paymentId, payments, players, parents, t, dataLoade
         <div style={{ margin: '18px 40px 0', height: 3, background: 'linear-gradient(90deg,#6D28D9,#A855F7,#FBBF24)' }}/>
 
         {/* Title Bar */}
-        <div style={{ background: 'linear-gradient(135deg,#5B21B6,#7C3AED)', margin: '0 0 20px', padding: '12px 40px', textAlign: 'center' }}>
-          <div style={{ color: '#fff', fontSize: 18, fontWeight: 900 }}>سند استلام إلكتروني</div>
+        <div style={{ background: 'linear-gradient(135deg,#5B21B6,#7C3AED)', margin: '0 0 20px', padding: '12px 40px', textAlign: 'center', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
+          <div style={{ color: '#fff', fontSize: 18, fontWeight: 900, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>سند استلام إلكتروني</div>
         </div>
 
         {/* Details Block */}
-        <div style={{ margin: '0 40px 18px', background: '#f8f5ff', borderRadius: 10, padding: '18px 22px', border: '1px solid #e0d0ff' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px 20px' }}>
+        <div style={{ margin: '0 40px 18px', background: '#f8f5ff', borderRadius: 10, padding: '18px 22px', border: '1px solid #e0d0ff', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px 20px', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
             <div>
-              <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>اسم اللاعب</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a2e' }}>{payment.playerName}</div>
+              <div style={{ fontSize: 10, color: '#999', marginBottom: 2, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>اسم اللاعب</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a2e', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>{payment.playerName}</div>
             </div>
             <div>
-              <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>الشهر</div>
-              <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a2e' }}>{payment.month}</div>
+              <div style={{ fontSize: 10, color: '#999', marginBottom: 2, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>الشهر</div>
+              <div style={{ fontSize: 14, fontWeight: 800, color: '#1a1a2e', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>{payment.month}</div>
             </div>
             <div>
-              <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>تاريخ الإصدار</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{todayStr}</div>
+              <div style={{ fontSize: 10, color: '#999', marginBottom: 2, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>تاريخ الإصدار</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>{todayStr}</div>
             </div>
             <div>
-              <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>المستلم</div>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#7C3AED' }}>{payment.coachName || 'الإدارة'}</div>
+              <div style={{ fontSize: 10, color: '#999', marginBottom: 2, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>المستلم</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#7C3AED', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>{payment.coachName || 'الإدارة'}</div>
             </div>
             {parent && (
               <div>
-                <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>ولي الأمر</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{parent.name}</div>
+                <div style={{ fontSize: 10, color: '#999', marginBottom: 2, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>ولي الأمر</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>{parent.name}</div>
               </div>
             )}
             <div>
-              <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>المجموع</div>
-              <div style={{ fontSize: 14, fontWeight: 900, color: '#7C3AED' }}>{fmtMoney(payment.amount)}</div>
+              <div style={{ fontSize: 10, color: '#999', marginBottom: 2, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>المجموع</div>
+              <div style={{ fontSize: 14, fontWeight: 900, color: '#7C3AED', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>{fmtMoney(payment.amount)}</div>
             </div>
           </div>
         </div>
 
         {/* Items Table */}
-        <div style={{ margin: '0 40px 24px', border: '1.5px solid #eee', borderRadius: 10, overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right' }}>
+        <div style={{ margin: '0 40px 24px', border: '1.5px solid #eee', borderRadius: 10, overflow: 'hidden', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'right', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
             <thead>
               <tr style={{ background: '#f6f6f9', borderBottom: '1.5px solid #eee' }}>
-                <th style={{ padding: '12px 18px', fontSize: 11, fontWeight: 800, color: '#555' }}>البند / نوع الدفعة</th>
-                <th style={{ padding: '12px 18px', fontSize: 11, fontWeight: 800, color: '#555', textAlign: 'center' }}>الكمية</th>
-                <th style={{ padding: '12px 18px', fontSize: 11, fontWeight: 800, color: '#555', textAlign: 'left' }}>المبلغ الإجمالي</th>
+                <th style={{ padding: '12px 18px', fontSize: 11, fontWeight: 800, color: '#555', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>البند / نوع الدفعة</th>
+                <th style={{ padding: '12px 18px', fontSize: 11, fontWeight: 800, color: '#555', textAlign: 'center', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>الكمية</th>
+                <th style={{ padding: '12px 18px', fontSize: 11, fontWeight: 800, color: '#555', textAlign: 'left', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>المبلغ الإجمالي</th>
               </tr>
             </thead>
             <tbody>
               <tr style={{ borderBottom: '1px solid #eee' }}>
-                <td style={{ padding: '14px 18px', fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>
+                <td style={{ padding: '14px 18px', fontSize: 13, fontWeight: 700, color: '#1a1a2e', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
                   {typeLabel} {payment.note ? `(${payment.note})` : ''}
                 </td>
-                <td style={{ padding: '14px 18px', fontSize: 13, color: '#666', textAlign: 'center' }}>1</td>
-                <td style={{ padding: '14px 18px', fontSize: 14, fontWeight: 800, color: '#7C3AED', textAlign: 'left' }}>
+                <td style={{ padding: '14px 18px', fontSize: 13, color: '#666', textAlign: 'center', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>1</td>
+                <td style={{ padding: '14px 18px', fontSize: 14, fontWeight: 800, color: '#7C3AED', textAlign: 'left', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
                   {fmtMoney(payment.amount)}
                 </td>
               </tr>
@@ -1472,37 +1476,37 @@ function PublicInvoiceView({ paymentId, payments, players, parents, t, dataLoade
         </div>
 
         {/* Total Summary */}
-        <div style={{ margin: '0 40px 24px', display: 'flex', justifyContent: 'flex-end' }}>
-          <div style={{ background: '#F8F6FC', borderRadius: 10, padding: '14px 22px', minWidth: 260, border: '1px dashed #7C3AED' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 11, color: '#777' }}>
+        <div style={{ margin: '0 40px 24px', display: 'flex', justifyContent: 'flex-end', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
+          <div style={{ background: '#F8F6FC', borderRadius: 10, padding: '14px 22px', minWidth: 260, border: '1px dashed #7C3AED', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8, fontSize: 11, color: '#777', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
               <span>المجموع الفرعي:</span>
-              <span style={{ fontWeight: 700 }}>{fmtMoney(payment.amount)}</span>
+              <span style={{ fontWeight: 700, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>{fmtMoney(payment.amount)}</span>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 900, color: '#1a1a2e', borderTop: '1px solid #e2d9f3', paddingTop: 8 }}>
-              <span style={{ color: '#7C3AED' }}>المجموع الكلي:</span>
-              <span style={{ color: '#7C3AED' }}>{fmtMoney(payment.amount)}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 14, fontWeight: 900, color: '#1a1a2e', borderTop: '1px solid #e2d9f3', paddingTop: 8, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
+              <span style={{ color: '#7C3AED', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>المجموع الكلي:</span>
+              <span style={{ color: '#7C3AED', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>{fmtMoney(payment.amount)}</span>
             </div>
           </div>
         </div>
 
         {/* Signature */}
-        <div style={{ margin: '0 40px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '2px dashed #ddd', paddingTop: 20 }}>
+        <div style={{ margin: '0 40px 28px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', borderTop: '2px dashed #ddd', paddingTop: 20, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
           <div>
-            <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a2e', marginBottom: 24 }}>توقيع ولي الأمر</div>
+            <div style={{ fontSize: 13, fontWeight: 800, color: '#1a1a2e', marginBottom: 24, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>توقيع ولي الأمر</div>
             <div style={{ width: 200, borderBottom: '1.5px solid #555', marginBottom: 6 }}></div>
-            <div style={{ fontSize: 10, color: '#999' }}>الاسم والتوقيع</div>
+            <div style={{ fontSize: 10, color: '#999', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>الاسم والتوقيع</div>
           </div>
-          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
             <div style={{ background: '#f9f9f9', padding: 4, borderRadius: 6, border: '1px solid #ddd' }}>
               <img src={`https://api.qrserver.com/v1/create-qr-code/?size=90x90&data=${encodeURIComponent(ACADEMY_WEBSITE)}&bgcolor=ffffff&color=6D28D9&margin=2`} alt="QR" style={{ width: 80, height: 80, display: 'block' }}/>
             </div>
-            <div style={{ fontSize: 8, color: '#999', marginTop: 4 }}>مسح ضوئي للموثوقية</div>
+            <div style={{ fontSize: 8, color: '#999', marginTop: 4, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>مسح ضوئي للموثوقية</div>
           </div>
         </div>
 
         {/* Footer info */}
-        <div style={{ background: '#7C49A8', padding: '12px 40px', color: '#fff', fontSize: 10, textAlign: 'center', fontWeight: 600 }}>
-          🏆 نادي نجد الرياضي — Riyadh, Saudi Arabia — نسعى لبناء جيل رياضي متميز
+        <div style={{ background: '#7C49A8', padding: '12px 40px', color: '#fff', fontSize: 10, textAlign: 'center', fontWeight: 600, fontFamily: "'Cairo', sans-serif", letterSpacing: "normal" }}>
+          نادي نجد الرياضي — Riyadh, Saudi Arabia — نسعى لبناء جيل رياضي متميز
         </div>
       </div>
     </div>
@@ -2288,32 +2292,26 @@ function AdminOverview({ players, coaches, groups, payments, attendance = [], t,
                 // Build message text
                 const isNearing = alertFilter === "nearing";
                 const msgText = [
-                  "السلام عليكم ورحمة الله وبركاته،",
-                  `نود إحاطتكم علماً بشأن اشتراك اللاعب: *${p.name}* (مجموعة: *${g?.name || "—"}*):`,
-                  "",
+                  "السلام عليكم ورحمة الله وبركاته",
+                  `نود إحاطتكم علماً بشأن اشتراك اللاعب: *${p.name}* (مجموعة: *${g?.name || "—"}*)`,
                   isNearing 
-                    ? "⚠️ اشتراك اللاعب شارف على الانتهاء." 
-                    : "🚨 انتهت حصص الاشتراك الحالي أو الاشتراك غير مسدد.",
-                  "",
+                    ? "تنبيه: اشتراك اللاعب شارف على الانتهاء" 
+                    : "تنبيه: انتهت حصص الاشتراك الحالي أو الاشتراك غير مسدد",
                   "*تفاصيل الاشتراك:*",
-                  `- الحصص المستهلكة: ${isNearing ? totalPast : sd.attendedCount} من أصل 12 حصة.`,
-                  `- الحصص المتبقية: ${12 - (isNearing ? totalPast : sd.attendedCount)} حصة.`,
-                  "",
+                  `- الحصص المستهلكة: ${isNearing ? totalPast : sd.attendedCount} من أصل 12 حصة`,
+                  `- الحصص المتبقية: ${12 - (isNearing ? totalPast : sd.attendedCount)} حصة`,
                   "*التواريخ:*",
                   `- تاريخ الانضمام: ${joinDateStr}`,
                   `- تاريخ آخر تجديد: ${renewalDate}`,
-                  "",
-                  "ولمتابعة تفاصيل الاشتراك والحضور والتقييمات الفنية للاعب، يرجى زيارة المنصة عبر الرابط:",
+                  "ولمتابعة تفاصيل الاشتراك والحضور والتقييمات الفنية للاعب، يرجى زيارة المنصة عبر الرابط التالي:",
                   ACADEMY_WEBSITE,
-                  "",
                   "بيانات الدخول الخاصة بكم:",
                   `- البريد الإلكتروني: ${parentEmail}`,
                   `- كلمة المرور: ${parentPassword}`,
-                  "",
-                  "يرجى سداد رسوم الاشتراك لضمان استمرارية حضور التمارين.",
-                  "شاكرين لكم تعاونكم وثقتكم بنا.",
-                  "نادي نجد الرياضي 🏆"
-                ].join("\n");
+                  "يرجى سداد رسوم الاشتراك لضمان استمرارية حضور التمارين",
+                  "شاكرين لكم تعاونكم وثقتكم بنا",
+                  "إدارة نادي نجد الرياضي"
+                ].join("\n\n");
 
                 const handleWhatsApp = () => {
                   const parentPhone = par?.phone || p.phone;
@@ -3487,7 +3485,7 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
             {/* Academy name + single logo */}
             <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6 }}>
               <img src={logoImg} alt="نادي نجد" style={{ width: 70, height: 70, objectFit: 'contain' }}/>
-              <div style={{ fontSize: 22, fontWeight: 900, color: '#1a1a2e', letterSpacing: '-0.3px', lineHeight: 1.2 }}>نادي نجد الرياض</div>
+              <div style={{ fontSize: 22, fontWeight: 900, color: '#1a1a2e', lineHeight: 1.2 }}>نادي نجد الرياض</div>
               <div style={{ fontSize: 12, color: '#777' }}>أكاديمية كرة القدم</div>
             </div>
             {/* Empty spacer to keep layout balanced */}
@@ -3499,7 +3497,7 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
 
           {/* ── Title Bar ── */}
           <div style={{ background: 'linear-gradient(135deg,#5B21B6,#7C3AED)', margin: '0 0 20px', padding: '12px 40px', textAlign: 'center' }}>
-            <div style={{ color: '#fff', fontSize: 18, fontWeight: 900, letterSpacing: 1 }}>
+            <div style={{ color: '#fff', fontSize: 18, fontWeight: 900 }}>
               {isExpense ? 'سند صرف مصروفات' : 'فاتورة مشترك'}
             </div>
           </div>
@@ -3807,31 +3805,26 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
     const parentPassword = (parent?.password && parent.password !== '••••••••' && !parent.password.includes(':') && parent.password.length <= 20) ? parent.password : (player?.password && player.password !== '••••••••' && !player.password.includes(':') && player.password.length <= 20) ? player.password : ((parent?.phone || player?.phone) ? `najd_${(parent?.phone || player?.phone).replace(/\D/g, '').slice(-4)}` : `najd_${(player?.id || '').replace(/\D/g, '').slice(-4) || '0000'}`);
 
     const msgText = [
-      "🌸 *نادي نجد الرياضي | سند استلام إلكتروني* 🌸",
-      "",
-      `*عميلنا العزيز،*`,
+      "نادي نجد الرياضي | سند استلام إلكتروني",
+      "عميلنا العزيز،",
       `تم إصدار سند الاستلام بنجاح للاعب: *${pay.playerName}*`,
-      "",
-      "📋 *تفاصيل السند:*",
-      `  • *رقم الفاتورة:* \`${invoiceNo}\``,
-      `  • *بند الدفع:* ${typeLabel}`,
-      `  • *المبلغ المدفوع:* *${fmtMoney(pay.amount)}*`,
-      `  • *تاريخ الإصدار:* ${dateStr}`,
-      `  • *الشهر المالي:* ${pay.month}`,
-      `  • *المستلم:* ${pay.coachName || "إدارة النادي"}`,
-      pay.note ? `  • *ملاحظة:* ${pay.note}` : "",
-      "",
-      "📥 *لتحميل الفاتورة بصيغة PDF وطباعتها:*",
+      "تفاصيل السند:",
+      `- رقم الفاتورة: ${invoiceNo}`,
+      `- بند الدفع: ${typeLabel}`,
+      `- المبلغ المدفوع: ${fmtMoney(pay.amount)}`,
+      `- تاريخ الإصدار: ${dateStr}`,
+      `- الشهر المالي: ${pay.month}`,
+      `- المستلم: ${pay.coachName || "إدارة النادي"}`,
+      pay.note ? `- ملاحظة: ${pay.note}` : "",
+      "لتحميل الفاتورة بصيغة PDF وطباعتها، يرجى زيارة الرابط التالي:",
       `${ACADEMY_WEBSITE}?invoiceId=${pay.id}`,
-      "",
-      "🔐 *بيانات الدخول لبوابة أولياء الأمور:*",
-      `  • *رابط المنصة:* ${ACADEMY_WEBSITE}`,
-      `  • *البريد الإلكتروني:* \`${parentEmail}\``,
-      `  • *كلمة المرور:* \`${parentPassword}\``,
-      "",
+      "بيانات الدخول لبوابة أولياء الأمور لمتابعة تفاصيل الاشتراك والحضور والتقييمات الفنية:",
+      `- رابط المنصة: ${ACADEMY_WEBSITE}`,
+      `- البريد الإلكتروني: ${parentEmail}`,
+      `- كلمة المرور: ${parentPassword}`,
       "نشكر لكم ثقتكم ودعمكم الدائم لأكاديميتنا.",
-      "🏆 *إدارة نادي نجد الرياضي* 🏆"
-    ].filter(Boolean).join("\n");
+      "إدارة نادي نجد الرياضي"
+    ].filter(Boolean).join("\n\n");
 
     // Clean and format number for WhatsApp
     let cleanNum = parentPhone.replace(/\D/g, "");
