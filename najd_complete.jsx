@@ -3592,6 +3592,64 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
     setPayments(ps => ps.filter(x => x.id !== id));
   };
 
+  const handleWhatsAppInvoice = (pay) => {
+    const player = players.find(x => x.id === pay.playerId);
+    const parent = player ? parents.find(x => x.id === player.parentId) : null;
+    const parentPhone = parent?.phone || player?.phone || "";
+    
+    if (!parentPhone) {
+      alert("⚠️ لا يوجد رقم هاتف مسجل لولي الأمر أو اللاعب!");
+      return;
+    }
+
+    const typeLabel = PAY_TYPES[pay.type]?.label || pay.type;
+    const invoiceNo = `INV-${pay.id.replace(/\D/g, '').slice(-8).padStart(8, '0')}`;
+    const dateStr = pay.date ? (typeof pay.date === "string" ? pay.date.substring(0, 10) : getLocalDateString(pay.date)) : "";
+    const parentEmail = parent?.email || player?.email || "—";
+    const parentPassword = (parent?.password && parent.password !== '••••••••' && !parent.password.includes(':') && parent.password.length <= 20) ? parent.password : (player?.password && player.password !== '••••••••' && !player.password.includes(':') && player.password.length <= 20) ? player.password : ((parent?.phone || player?.phone) ? `najd_${(parent?.phone || player?.phone).replace(/\D/g, '').slice(-4)}` : `najd_${(player?.id || '').replace(/\D/g, '').slice(-4) || '0000'}`);
+
+    const msgText = [
+      "السلام عليكم ورحمة الله وبركاته،",
+      `مرفق لكم تفاصيل سند الاستلام الإلكتروني للاعب: *${pay.playerName}*:`,
+      "",
+      `🧾 *رقم الفاتورة:* ${invoiceNo}`,
+      `💰 *نوع الدفعة:* ${typeLabel}`,
+      `💵 *المبلغ:* ${fmtMoney(pay.amount)}`,
+      `📅 *التاريخ:* ${dateStr}`,
+      `🗓️ *الشهر:* ${pay.month}`,
+      `👤 *المستلم:* ${pay.coachName || "الإدارة"}`,
+      pay.note ? `📝 *ملاحظة:* ${pay.note}` : "",
+      "",
+      "ولمتابعة تفاصيل الاشتراك والحضور والتقييمات الفنية للاعب، يرجى زيارة المنصة عبر الرابط:",
+      ACADEMY_WEBSITE,
+      "",
+      "بيانات الدخول الخاصة بكم:",
+      `- البريد الإلكتروني: ${parentEmail}`,
+      `- كلمة المرور: ${parentPassword}`,
+      "",
+      "شاكرين لكم تعاونكم وثقتكم بنا.",
+      "نادي نجد الرياضي 🏆"
+    ].filter(Boolean).join("\n");
+
+    // Clean and format number for WhatsApp
+    let cleanNum = parentPhone.replace(/\D/g, "");
+    if (cleanNum.startsWith("00966")) {
+      cleanNum = cleanNum.slice(2);
+    }
+    if (cleanNum.startsWith("05") && cleanNum.length === 10) {
+      cleanNum = "966" + cleanNum.slice(1);
+    } else if (cleanNum.startsWith("5") && cleanNum.length === 9) {
+      cleanNum = "966" + cleanNum;
+    } else if (!cleanNum.startsWith("966") && cleanNum.startsWith("0")) {
+      cleanNum = "966" + cleanNum.slice(1);
+    } else if (!cleanNum.startsWith("966")) {
+      cleanNum = "966" + cleanNum;
+    }
+
+    const waLink = `https://wa.me/${cleanNum}?text=${encodeURIComponent(msgText)}`;
+    window.open(waLink, "_blank");
+  };
+
   const saveExpense = () => {
     if (!expForm.item.trim() || !expForm.purchaser.trim()) {
       alert("الرجاء تعبئة الحقول الأساسية: البيان العام والقائم بالصرف.");
@@ -3712,6 +3770,21 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
                             }}
                           >
                             🧾 فاتورة
+                          </button>
+                          <button
+                            onClick={() => handleWhatsAppInvoice(p)}
+                            title="إرسال الفاتورة عبر واتساب"
+                            style={{
+                              padding: "4px 8px", borderRadius: 6, border: "1px solid #10B981",
+                              background: "rgba(16,185,129,0.1)", color: "#10B981",
+                              fontSize: 10, fontWeight: 700, cursor: "pointer",
+                              fontFamily: "'Cairo',sans-serif", display: "flex", alignItems: "center", gap: 3
+                            }}
+                          >
+                            <svg viewBox="0 0 24 24" width="12" height="12" fill="currentColor">
+                              <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.73-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.864-9.799.002-2.63-1.023-5.101-2.885-6.963C16.488 2.01 14.025 1 11.997 1c-5.442 0-9.865 4.372-9.87 9.802 0 1.714.464 3.39 1.343 4.869l-.997 3.641 3.734-.978l-.16.09zM15.97 13.06c-.328-.164-1.94-.959-2.24-1.07-.3-.11-.52-.165-.74.165-.22.33-.85 1.071-1.04 1.29-.19.22-.38.242-.7.078-.328-.164-1.386-.511-2.64-1.629-.977-.872-1.637-1.95-1.828-2.28-.19-.33-.02-.508.145-.671.15-.147.33-.384.495-.577.165-.19.22-.328.328-.548.11-.22.05-.411-.025-.575-.075-.164-.74-1.782-1.01-2.436-.27-.648-.54-.56-.74-.571-.192-.01-.413-.011-.634-.011-.22 0-.58.083-.884.417-.305.333-1.162 1.137-1.162 2.772 0 1.636 1.192 3.217 1.356 3.436.165.22 2.348 3.585 5.688 5.03 2.78 1.203 3.344 1.218 4.545 1.107 1.192-.11 2.47-.984 2.82-1.942.35-.957.35-1.777.24-1.942-.11-.165-.33-.263-.66-.427z"/>
+                            </svg>
+                            واتساب
                           </button>
                           <button
                             onClick={() => {
