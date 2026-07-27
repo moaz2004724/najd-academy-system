@@ -1806,7 +1806,7 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
   ];
   return (
     <Shell title="لوحة الإدارة" subtitle="نادي نجد الرياض" color="#7C49A8" icon="dashboard" tabs={tabs} activeTab={tab} setActiveTab={setTab} onLogout={onLogout} badge="مدير عام" user={user} t={t} syncStatus={syncStatus}>
-      {tab === "overview"  && <AdminOverview players={players} coaches={coaches} groups={groups} payments={payments} attendance={attendance} t={t} trainings={trainings} expenses={expenses} />}
+      {tab === "overview"  && <AdminOverview players={players} coaches={coaches} groups={groups} payments={payments} attendance={attendance} t={t} trainings={trainings} expenses={expenses} setMessages={setMessages} parents={parents} />}
       {tab === "teams"     && <AdminTeams groups={groups} setGroups={setGroups} coaches={coaches} players={players} t={t} trainings={trainings} attendance={attendance} payments={payments} />}
       {tab === "coaches"   && <AdminCoaches coaches={coaches} setCoaches={setCoaches} groups={groups} players={players} payments={payments} t={t} />}
       {tab === "players"   && <AdminPlayers players={players} setPlayers={setPlayers} groups={groups} parents={parents} evals={evals} coaches={coaches} t={t} trainings={trainings} attendance={attendance} payments={payments} setAttendance={setAttendance} />}
@@ -1820,7 +1820,8 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
 }
 
 /* ── Admin Overview ─────────────────────────────────── */
-function AdminOverview({ players, coaches, groups, payments, attendance = [], t, trainings, expenses = [] }) {
+function AdminOverview({ players, coaches, groups, payments, attendance = [], t, trainings, expenses = [], setMessages, parents }) {
+  const [alertFilter, setAlertFilter] = useState("all"); // "all" (expired/unpaid) or "nearing" (starting session 11+)
   const total   = payments.reduce((a, p) => a + p.amount, 0);
   const month   = payments.filter(p => p.month === CUR_MONTH).reduce((a, p) => a + p.amount, 0);
   const active  = players.filter(p => {
@@ -2004,19 +2005,235 @@ function AdminOverview({ players, coaches, groups, payments, attendance = [], t,
           })}
         </Card>
         <Card t={t} style={{ padding: 22 }}>
-          <div style={{ fontWeight: 700, fontSize: 13, color: "#EF4444", marginBottom: 14 }}>⚠️ اشتراكات منتهية أو غير مسددة</div>
-          {players.filter(p => {
-            const sd = getPlayerSubscriptionDetails(p, trainings, attendance, payments);
-            return sd.isUnpaid || sd.isExpired;
-          }).map(p => (
-            <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 0", borderBottom: `1px solid ${t.border}` }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 9 }}>
-                <Avatar name={p.name} size={28} color="#EF4444"/>
-                <div><div style={{ fontSize: 12, fontWeight: 600, color: t.text }}>{p.name}</div><div style={{ fontSize: 10, color: t.textDim }}>{groups.find(g => g.id === p.groupId)?.name}</div></div>
-              </div>
-              <Chip text="متأخر" color="#EF4444"/>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 8 }}>
+            <div style={{ fontWeight: 700, fontSize: 13, color: "#EF4444", display: "flex", alignItems: "center", gap: 6 }}>
+              <span>⚠️</span> تنبيهات السداد العاجلة للأعضاء
             </div>
-          ))}
+            <div style={{ display: "flex", gap: 6 }}>
+              <button 
+                onClick={() => setAlertFilter("all")} 
+                style={{ 
+                  padding: "4px 8px", 
+                  borderRadius: 6, 
+                  border: "none", 
+                  background: alertFilter === "all" ? "rgba(239,68,68,0.12)" : "transparent", 
+                  color: alertFilter === "all" ? "#EF4444" : t.textDim, 
+                  fontSize: 10, 
+                  fontWeight: 700, 
+                  cursor: "pointer",
+                  fontFamily: "'Cairo',sans-serif"
+                }}
+              >
+                منتهية / غير مسددة
+              </button>
+              <button 
+                onClick={() => setAlertFilter("nearing")} 
+                style={{ 
+                  padding: "4px 8px", 
+                  borderRadius: 6, 
+                  border: "none", 
+                  background: alertFilter === "nearing" ? "rgba(245,158,11,0.12)" : "transparent", 
+                  color: alertFilter === "nearing" ? "#F59E0B" : t.textDim, 
+                  fontSize: 10, 
+                  fontWeight: 700, 
+                  cursor: "pointer",
+                  fontFamily: "'Cairo',sans-serif"
+                }}
+              >
+                شارفت على الانتهاء (الحصة 11+)
+              </button>
+            </div>
+          </div>
+
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, maxHeight: 320, overflowY: "auto", paddingRight: 4 }}>
+            {(() => {
+              const list = players.filter(p => {
+                if (p.status === "موقوف" || p.status === "مجمّد") return false;
+                const sd = getPlayerSubscriptionDetails(p, trainings, attendance, payments);
+                if (alertFilter === "all") {
+                  return sd.isUnpaid || sd.isExpired;
+                } else {
+                  const totalPast = sd.attendedCount + sd.absentCount + sd.excusedCount;
+                  return !sd.isUnpaid && !sd.isExpired && totalPast >= 10 && totalPast < 12;
+                }
+              });
+
+              if (list.length === 0) {
+                return (
+                  <div style={{ textAlign: "center", color: t.textFaint, padding: "20px 0", fontSize: 11 }}>
+                    لا توجد تنبيهات سداد حالياً.
+                  </div>
+                );
+              }
+
+              return list.map(p => {
+                const sd = getPlayerSubscriptionDetails(p, trainings, attendance, payments);
+                const g = groups.find(x => x.id === p.groupId);
+                const par = parents.find(x => x.id === p.parentId);
+                const totalPast = sd.attendedCount + sd.absentCount + sd.excusedCount;
+                
+                // Get last payment date
+                const playerPays = (payments || []).filter(pay => String(pay.playerId) === String(p.id) && pay.type === "subscription");
+                const sortedPays = [...playerPays].sort((a, b) => {
+                  const da = typeof a.date === "string" ? a.date.substring(0, 10) : getLocalDateString(a.date);
+                  const db = typeof b.date === "string" ? b.date.substring(0, 10) : getLocalDateString(b.date);
+                  return db.localeCompare(da);
+                });
+                const renewalDate = sortedPays.length > 0 ? formatArabicDate(sortedPays[0].date) : "تجديد تلقائي عند التسجيل";
+                const joinDateStr = formatArabicDate(p.joinDate);
+
+                // Build message text
+                const isNearing = alertFilter === "nearing";
+                const msgText = [
+                  "السلام عليكم ورحمة الله وبركاته،",
+                  `نود إحاطتكم علماً بشأن اشتراك اللاعب: *${p.name}* (مجموعة: *${g?.name || "—"}*):`,
+                  "",
+                  isNearing 
+                    ? "⚠️ اشتراك اللاعب شارف على الانتهاء." 
+                    : "🚨 انتهت حصص الاشتراك الحالي أو الاشتراك غير مسدد.",
+                  "",
+                  "*تفاصيل الاشتراك:*",
+                  `- الحصص المستهلكة: ${isNearing ? totalPast : sd.attendedCount} من أصل 12 حصة.`,
+                  `- الحصص المتبقية: ${12 - (isNearing ? totalPast : sd.attendedCount)} حصة.`,
+                  "",
+                  "*التواريخ:*",
+                  `- تاريخ الانضمام: ${joinDateStr}`,
+                  `- تاريخ آخر تجديد: ${renewalDate}`,
+                  "",
+                  "يرجى سداد رسوم الاشتراك لضمان استمرارية حضور التمارين.",
+                  "شاكرين لكم تعاونكم وثقتكم بنا.",
+                  "نادي نجد الرياضي 🏆"
+                ].join("\n");
+
+                const handleWhatsApp = () => {
+                  const parentPhone = par?.phone || p.phone;
+                  if (!parentPhone) {
+                    alert("⚠️ لا يوجد رقم هاتف مسجل لولي الأمر أو اللاعب!");
+                    return;
+                  }
+                  
+                  // Clean and format number for WhatsApp
+                  let cleanNum = parentPhone.replace(/\D/g, "");
+                  if (cleanNum.startsWith("00966")) {
+                    cleanNum = cleanNum.slice(2);
+                  }
+                  if (cleanNum.startsWith("05") && cleanNum.length === 10) {
+                    cleanNum = "966" + cleanNum.slice(1);
+                  } else if (cleanNum.startsWith("5") && cleanNum.length === 9) {
+                    cleanNum = "966" + cleanNum;
+                  } else if (!cleanNum.startsWith("966") && cleanNum.startsWith("0")) {
+                    cleanNum = "966" + cleanNum.slice(1);
+                  } else if (!cleanNum.startsWith("966")) {
+                    cleanNum = "966" + cleanNum;
+                  }
+
+                  const waLink = `https://wa.me/${cleanNum}?text=${encodeURIComponent(msgText)}`;
+                  window.open(waLink, "_blank");
+                };
+
+                const handlePlatform = () => {
+                  const parentId = par?.id || p.parentId;
+                  const parentName = par?.name || "ولي الأمر";
+                  if (!parentId) {
+                    alert("⚠️ لا يوجد معرف لولي الأمر لإرسال رسالة عبر المنصة!");
+                    return;
+                  }
+
+                  const newMsg = {
+                    id: `msg${Date.now()}-${parentId}`,
+                    from: "admin",
+                    fromName: "الإدارة",
+                    to: parentId,
+                    toName: parentName,
+                    text: msgText,
+                    files: [],
+                    date: getLocalDateString(new Date()),
+                    read: false
+                  };
+
+                  if (setMessages) {
+                    setMessages(ms => [...ms, newMsg]);
+                  }
+                  
+                  if (API_URL) {
+                    fetch(`${API_URL}/api/messages`, {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify(newMsg)
+                    }).catch(console.error);
+                  }
+                  
+                  alert("✅ تم إرسال الرسالة بنجاح عبر المنصة!");
+                };
+
+                return (
+                  <div key={p.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 0", borderBottom: `1px solid ${t.border}` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, flex: 1 }}>
+                      <Avatar name={p.name} size={28} color={isNearing ? "#F59E0B" : "#EF4444"}/>
+                      <div style={{ minWidth: 0, flex: 1 }}>
+                        <div style={{ fontSize: 12, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                        <div style={{ fontSize: 10, color: t.textDim }}>{g?.name || "—"}</div>
+                      </div>
+                    </div>
+                    
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: isNearing ? "#F59E0B" : "#EF4444", background: isNearing ? "rgba(245,158,11,0.08)" : "rgba(239,68,68,0.08)", padding: "3px 8px", borderRadius: 6 }}>
+                        {isNearing ? `الحصة ${totalPast}/12` : (sd.isUnpaid ? "غير مسدد" : "منتهي")}
+                      </span>
+                      
+                      {/* WhatsApp Button */}
+                      <button 
+                        onClick={handleWhatsApp}
+                        title="إرسال عبر واتساب"
+                        style={{ 
+                          width: 28, 
+                          height: 28, 
+                          borderRadius: 8, 
+                          border: "none", 
+                          background: "rgba(16,185,129,0.1)", 
+                          color: "#10B981", 
+                          cursor: "pointer", 
+                          display: "grid", 
+                          placeItems: "center",
+                          transition: "all 0.2s"
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = "rgba(16,185,129,0.2)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "rgba(16,185,129,0.1)"}
+                      >
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor">
+                          <path d="M.057 24l1.687-6.163c-1.041-1.804-1.588-3.849-1.587-5.946C.06 5.348 5.397.01 12.008.01c3.202.001 6.212 1.246 8.477 3.514 2.266 2.268 3.507 5.28 3.505 8.484-.004 6.657-5.34 11.997-11.953 11.997-2.005-.001-3.973-.502-5.73-1.455L0 24zm6.59-4.846c1.6.95 3.188 1.449 4.825 1.451 5.436 0 9.86-4.37 9.864-9.799.002-2.63-1.023-5.101-2.885-6.963C16.488 2.01 14.025 1 11.997 1c-5.442 0-9.865 4.372-9.87 9.802 0 1.714.464 3.39 1.343 4.869l-.997 3.641 3.734-.978l-.16.09zM15.97 13.06c-.328-.164-1.94-.959-2.24-1.07-.3-.11-.52-.165-.74.165-.22.33-.85 1.071-1.04 1.29-.19.22-.38.242-.7.078-.328-.164-1.386-.511-2.64-1.629-.977-.872-1.637-1.95-1.828-2.28-.19-.33-.02-.508.145-.671.15-.147.33-.384.495-.577.165-.19.22-.328.328-.548.11-.22.05-.411-.025-.575-.075-.164-.74-1.782-1.01-2.436-.27-.648-.54-.56-.74-.571-.192-.01-.413-.011-.634-.011-.22 0-.58.083-.884.417-.305.333-1.162 1.137-1.162 2.772 0 1.636 1.192 3.217 1.356 3.436.165.22 2.348 3.585 5.688 5.03 2.78 1.203 3.344 1.218 4.545 1.107 1.192-.11 2.47-.984 2.82-1.942.35-.957.35-1.777.24-1.942-.11-.165-.33-.263-.66-.427z"/>
+                        </svg>
+                      </button>
+                      
+                      {/* Platform Message Button */}
+                      <button 
+                        onClick={handlePlatform}
+                        title="إرسال عبر المنصة"
+                        style={{ 
+                          width: 28, 
+                          height: 28, 
+                          borderRadius: 8, 
+                          border: "none", 
+                          background: "rgba(124,73,168,0.1)", 
+                          color: "#7C49A8", 
+                          cursor: "pointer", 
+                          display: "grid", 
+                          placeItems: "center",
+                          transition: "all 0.2s"
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = "rgba(124,73,168,0.2)"}
+                        onMouseLeave={e => e.currentTarget.style.background = "rgba(124,73,168,0.1)"}
+                      >
+                        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
         </Card>
       </div>
     </div>
