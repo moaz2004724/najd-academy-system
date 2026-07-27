@@ -2080,6 +2080,9 @@ function AdminOverview({ players, coaches, groups, payments, attendance = [], t,
                   const db = typeof b.date === "string" ? b.date.substring(0, 10) : getLocalDateString(b.date);
                   return db.localeCompare(da);
                 });
+                const renewalDate = sortedPays.length > 0 ? formatArabicDate(sortedPays[0].date) : "تجديد تلقائي عند التسجيل";
+                const joinDateStr = formatArabicDate(p.joinDate);
+
                 // Get parent credentials
                 const parentEmail = par?.email || p.email || "—";
                 const parentPassword = (par?.password && par.password !== '••••••••' && !par.password.includes(':') && par.password.length <= 20) ? par.password : (p.password && p.password !== '••••••••' && !p.password.includes(':') && p.password.length <= 20) ? p.password : ((par?.phone || p.phone) ? `najd_${(par?.phone || p.phone).replace(/\D/g, '').slice(-4)}` : `najd_${(p.id || '').replace(/\D/g, '').slice(-4) || '0000'}`);
