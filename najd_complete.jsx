@@ -1793,6 +1793,7 @@ export default function App() {
 ══════════════════════════════════════════════════════════ */
 function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, players, setPlayers, parents, payments, setPayments, attendance, setAttendance, coachesAttendance, setCoachesAttendance, evals, messages, setMessages, prices, setPrices, trainings, setTrainings, t, syncStatus, expenses, setExpenses }) {
   const [tab, setTab] = useState("overview");
+  const [selectedPlayerId, setSelectedPlayerId] = useState(null);
   const tabs = [
     { id: "overview",     icon: "dashboard",    label: "نظرة عامة"   },
     { id: "teams",        icon: "teams",        label: "الفرق"        },
@@ -1806,10 +1807,10 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
   ];
   return (
     <Shell title="لوحة الإدارة" subtitle="نادي نجد الرياض" color="#7C49A8" icon="dashboard" tabs={tabs} activeTab={tab} setActiveTab={setTab} onLogout={onLogout} badge="مدير عام" user={user} t={t} syncStatus={syncStatus}>
-      {tab === "overview"  && <AdminOverview players={players} coaches={coaches} groups={groups} payments={payments} attendance={attendance} t={t} trainings={trainings} expenses={expenses} setMessages={setMessages} parents={parents} />}
+      {tab === "overview"  && <AdminOverview players={players} coaches={coaches} groups={groups} payments={payments} attendance={attendance} t={t} trainings={trainings} expenses={expenses} setMessages={setMessages} parents={parents} setTab={setTab} setSelectedPlayerId={setSelectedPlayerId} />}
       {tab === "teams"     && <AdminTeams groups={groups} setGroups={setGroups} coaches={coaches} players={players} t={t} trainings={trainings} attendance={attendance} payments={payments} />}
       {tab === "coaches"   && <AdminCoaches coaches={coaches} setCoaches={setCoaches} groups={groups} players={players} payments={payments} t={t} />}
-      {tab === "players"   && <AdminPlayers players={players} setPlayers={setPlayers} groups={groups} parents={parents} evals={evals} coaches={coaches} t={t} trainings={trainings} attendance={attendance} payments={payments} setAttendance={setAttendance} />}
+      {tab === "players"   && <AdminPlayers players={players} setPlayers={setPlayers} groups={groups} parents={parents} evals={evals} coaches={coaches} t={t} trainings={trainings} attendance={attendance} payments={payments} setAttendance={setAttendance} sel={selectedPlayerId} setSel={setSelectedPlayerId} />}
       {tab === "payments"  && <AdminPayments payments={payments} setPayments={setPayments} players={players} coaches={coaches} parents={parents} prices={prices} t={t} expenses={expenses} setExpenses={setExpenses} />}
       {tab === "prices"    && <AdminPrices prices={prices} setPrices={setPrices} t={t} />}
       {tab === "schedule"  && <AdminTrainings trainings={trainings} setTrainings={setTrainings} groups={groups} coaches={coaches} t={t} />}
@@ -1820,7 +1821,7 @@ function AdminPortal({ user, onLogout, groups, setGroups, coaches, setCoaches, p
 }
 
 /* ── Admin Overview ─────────────────────────────────── */
-function AdminOverview({ players, coaches, groups, payments, attendance = [], t, trainings, expenses = [], setMessages, parents }) {
+function AdminOverview({ players, coaches, groups, payments, attendance = [], t, trainings, expenses = [], setMessages, parents, setTab, setSelectedPlayerId }) {
   const [alertFilter, setAlertFilter] = useState("all"); // "all" (expired/unpaid) or "nearing" (starting session 11+)
   const total   = payments.reduce((a, p) => a + p.amount, 0);
   const month   = payments.filter(p => p.month === CUR_MONTH).reduce((a, p) => a + p.amount, 0);
@@ -2079,8 +2080,9 @@ function AdminOverview({ players, coaches, groups, payments, attendance = [], t,
                   const db = typeof b.date === "string" ? b.date.substring(0, 10) : getLocalDateString(b.date);
                   return db.localeCompare(da);
                 });
-                const renewalDate = sortedPays.length > 0 ? formatArabicDate(sortedPays[0].date) : "تجديد تلقائي عند التسجيل";
-                const joinDateStr = formatArabicDate(p.joinDate);
+                // Get parent credentials
+                const parentEmail = par?.email || p.email || "—";
+                const parentPassword = (par?.password && par.password !== '••••••••' && !par.password.includes(':') && par.password.length <= 20) ? par.password : (p.password && p.password !== '••••••••' && !p.password.includes(':') && p.password.length <= 20) ? p.password : ((par?.phone || p.phone) ? `najd_${(par?.phone || p.phone).replace(/\D/g, '').slice(-4)}` : `najd_${(p.id || '').replace(/\D/g, '').slice(-4) || '0000'}`);
 
                 // Build message text
                 const isNearing = alertFilter === "nearing";
@@ -2099,6 +2101,13 @@ function AdminOverview({ players, coaches, groups, payments, attendance = [], t,
                   "*التواريخ:*",
                   `- تاريخ الانضمام: ${joinDateStr}`,
                   `- تاريخ آخر تجديد: ${renewalDate}`,
+                  "",
+                  "ولمتابعة تفاصيل الاشتراك والحضور والتقييمات الفنية للاعب، يرجى زيارة المنصة عبر الرابط:",
+                  ACADEMY_WEBSITE,
+                  "",
+                  "بيانات الدخول الخاصة بكم:",
+                  `- البريد الإلكتروني: ${parentEmail}`,
+                  `- كلمة المرور: ${parentPassword}`,
                   "",
                   "يرجى سداد رسوم الاشتراك لضمان استمرارية حضور التمارين.",
                   "شاكرين لكم تعاونكم وثقتكم بنا.",
@@ -2171,7 +2180,28 @@ function AdminOverview({ players, coaches, groups, payments, attendance = [], t,
                     <div style={{ display: "flex", alignItems: "center", gap: 9, minWidth: 0, flex: 1 }}>
                       <Avatar name={p.name} size={28} color={isNearing ? "#F59E0B" : "#EF4444"}/>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontSize: 12, fontWeight: 600, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.name}</div>
+                        <div 
+                          onClick={() => {
+                            if (setSelectedPlayerId && setTab) {
+                              setSelectedPlayerId(p.id);
+                              setTab("players");
+                            }
+                          }}
+                          style={{ 
+                            fontSize: 12, 
+                            fontWeight: 600, 
+                            color: t.text, 
+                            overflow: "hidden", 
+                            textOverflow: "ellipsis", 
+                            whiteSpace: "nowrap",
+                            cursor: "pointer",
+                            transition: "color 0.2s"
+                          }}
+                          onMouseEnter={e => e.currentTarget.style.color = "#7C49A8"}
+                          onMouseLeave={e => e.currentTarget.style.color = t.text}
+                        >
+                          {p.name}
+                        </div>
                         <div style={{ fontSize: 10, color: t.textDim }}>{g?.name || "—"}</div>
                       </div>
                     </div>
@@ -2612,8 +2642,7 @@ function AdminCoaches({ coaches, setCoaches, groups, players, payments, t }) {
 }
 
 /* ── Admin Players ──────────────────────────────────── */
-function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t, trainings, attendance, payments, setAttendance }) {
-  const [sel, setSel]   = useState(null);
+function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t, trainings, attendance, payments, setAttendance, sel, setSel }) {
   const [modal, setModal] = useState(false);
   const [search, setSearch] = useState("");
   const emptyP = { name: "", age: "", groupId: groups[0]?.id || "", phone: "", position: "مهاجم", status: "نشط", score: 80, speed: 75, stamina: 75, technique: 75, teamwork: 75, goals: 0, assists: 0, attendancePct: 90, weight: "", height: "", parentId: "__new__", email: "", password: "" };
