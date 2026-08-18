@@ -3725,6 +3725,7 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
   const [fc, setFc] = useState("الكل");
   const [ft, setFt] = useState("الكل");
   const [fe, setFe] = useState("الكل"); // expense month filter
+  const [searchQuery, setSearchQuery] = useState("");
   
   const MONTHS = ["يناير", "فبراير", "مارس", "أبريل", "مايو", "يونيو", "يوليو", "أغسطس", "سبتمبر", "أكتوبر", "نوفمبر", "ديسمبر"].map(m => `${m} 2026`);
   
@@ -3734,7 +3735,11 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
   const emptyExpense = { item: "", amount: "", purchaser: "", date: getLocalDateString(new Date()), month: CUR_MONTH, note: "" };
   const [expForm, setExpForm] = useState(emptyExpense);
 
-  const filtered = payments.filter(p => (fc === "الكل" || p.coachId === fc) && (ft === "الكل" || p.type === ft));
+  const filtered = payments.filter(p => 
+    (fc === "الكل" || p.coachId === fc) && 
+    (ft === "الكل" || p.type === ft) &&
+    (searchQuery === "" || (p.playerName || "").toLowerCase().includes(searchQuery.toLowerCase()))
+  );
   const filteredExpenses = (expenses || []).filter(e => fe === "الكل" || e.month === fe);
 
   const toggleType = (type) => {
@@ -3920,16 +3925,61 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
                 </button>
               ))}
             </div>
-            <Btn onClick={() => { 
-              if (players.length === 0) {
-                alert("الرجاء إضافة لاعب واحد على الأقل أولاً لتتمكن من تسجيل المدفوعات.");
-                return;
-              }
-              setForm({ ...empty, playerId: players[0].id, coachId: coaches[0]?.id || "none" }); 
-              setModal(true); 
-            }}>
-              <AnimIcon type="plus" size={14} color="#fff"/> تسجيل دفعة
-            </Btn>
+            <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              {/* حقل البحث باسم اللاعب */}
+              <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                <i className="bi bi-search" style={{ position: "absolute", right: 12, color: t.textDim, fontSize: 13, pointerEvents: "none" }}></i>
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="ابحث باسم اللاعب..."
+                  style={{
+                    padding: "8px 32px 8px 12px",
+                    borderRadius: 10,
+                    border: `1px solid ${t.border}`,
+                    background: t.bg2,
+                    color: t.text,
+                    fontSize: 12,
+                    outline: "none",
+                    width: 200,
+                    fontFamily: "'Cairo', sans-serif",
+                    transition: "all 0.2s"
+                  }}
+                />
+                {searchQuery && (
+                  <button
+                    onClick={() => setSearchQuery("")}
+                    style={{
+                      position: "absolute",
+                      left: 8,
+                      background: "transparent",
+                      border: "none",
+                      color: t.textDim,
+                      cursor: "pointer",
+                      fontSize: 14,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      padding: 2
+                    }}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <Btn onClick={() => { 
+                if (players.length === 0) {
+                  alert("الرجاء إضافة لاعب واحد على الأقل أولاً لتتمكن من تسجيل المدفوعات.");
+                  return;
+                }
+                setForm({ ...empty, playerId: players[0].id, coachId: coaches[0]?.id || "none" }); 
+                setModal(true); 
+              }}>
+                <AnimIcon type="plus" size={14} color="#fff"/> تسجيل دفعة
+              </Btn>
+            </div>
           </div>
 
           <Card t={t} style={{ overflow: "hidden" }}>
