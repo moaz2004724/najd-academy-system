@@ -19,13 +19,14 @@ enum Role {
 }
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  name      String
-  role      Role     @default(PARENT)
-  phone     String?
-  createdAt DateTime @default(now())
+  id                String   @id @default(cuid())
+  email             String   @unique
+  password          String
+  encryptedPassword String?
+  name              String
+  role              Role     @default(PARENT)
+  phone             String?
+  createdAt         DateTime @default(now())
 
   // Relations
   coachProfile  Coach?
@@ -99,20 +100,26 @@ model Group {
   players   Player[]
   trainings Training[]
   attendance Attendance[]
+  price8    Float?
+  price12   Float?
+  price16   Float?
 }
 
 model Payment {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   playerId   String
-  player     Player   @relation(fields: [playerId], references: [id])
+  player     Player    @relation(fields: [playerId], references: [id])
   playerName String?
   coachId    String?
   coachName  String?
   type       String
   month      String
   amount     Float
-  date       DateTime @default(now())
+  date       DateTime  @default(now())
   note       String?
+  subType    String?   // "sessions_12" or "monthly"
+  startDate  DateTime?
+  endDate    DateTime?
 }
 
 model Attendance {
@@ -177,4 +184,14 @@ model Expense {
   date      DateTime @default(now())
   month     String
   note      String?
+}
+
+model AuditLog {
+  id        String    @id @default(cuid())
+  action    String
+  details   Json?
+  adminId   String?
+  targetId  String?
+  timestamp DateTime?
+  createdAt DateTime  @default(now())
 }

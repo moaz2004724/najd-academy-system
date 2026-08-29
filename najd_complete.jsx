@@ -123,7 +123,7 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
     };
   }
 
-  const playerSubPays = (payments || []).filter(pay => String(pay.playerId) === String(player.id) && pay.type === "subscription");
+  const playerSubPays = (payments || []).filter(pay => String(pay.playerId) === String(player.id) && isSubscriptionPayment(pay));
   const P = playerSubPays.length;
 
   if (P === 0) {
@@ -136,7 +136,9 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
       cycleIndex: 0,
       isUnpaid: true,
       isExpired: false,
-      isActive: false
+      isActive: false,
+      startDate: "",
+      endDate: ""
     };
   }
 
@@ -153,7 +155,9 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
       cycleIndex: 1,
       isUnpaid: false,
       isExpired: false,
-      isActive: false
+      isActive: false,
+      startDate: "",
+      endDate: ""
     };
   }
 
@@ -217,8 +221,8 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
 
   // Sort sub payments chronologically
   const sortedSubPays = [...playerSubPays].sort((a, b) => {
-    const da = typeof a.date === "string" ? a.date.substring(0, 10) : getLocalDateString(a.date);
-    const db = typeof b.date === "string" ? b.date.substring(0, 10) : getLocalDateString(b.date);
+    const da = a.startDate ? (typeof a.startDate === "string" ? a.startDate.substring(0, 10) : getLocalDateString(a.startDate)) : (typeof a.date === "string" ? a.date.substring(0, 10) : getLocalDateString(a.date));
+    const db = b.startDate ? (typeof b.startDate === "string" ? b.startDate.substring(0, 10) : getLocalDateString(b.startDate)) : (typeof b.date === "string" ? b.date.substring(0, 10) : getLocalDateString(b.date));
     return da.localeCompare(db);
   });
 
@@ -227,7 +231,7 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
 
   for (let c = 1; c <= P; c++) {
     const pay = sortedSubPays[c - 1];
-    let startDateStr = typeof pay.date === "string" ? pay.date.substring(0, 10) : getLocalDateString(pay.date);
+    let startDateStr = pay.startDate ? (typeof pay.startDate === "string" ? pay.startDate.substring(0, 10) : getLocalDateString(pay.startDate)) : (typeof pay.date === "string" ? pay.date.substring(0, 10) : getLocalDateString(pay.date));
     
     if (lastCycleEndDate) {
       if (startDateStr < lastCycleEndDate) {
@@ -236,29 +240,49 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
     }
 
     const cycleDates = [];
+    const isMonthly = pay.type === "subscription_monthly" || pay.subType === "monthly";
+    const endDateStr = isMonthly 
+      ? (pay.endDate ? (typeof pay.endDate === "string" ? pay.endDate.substring(0, 10) : getLocalDateString(pay.endDate)) : getEndDateOneMonthLater(startDateStr))
+      : null;
     
     // Parse the start date string safely
     const parts = startDateStr.split("-");
-    let current = new Date(parts[0], parts[1] - 1, parts[2]);
+    let current = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     if (lastCycleEndDate && startDateStr === lastCycleEndDate) {
       current.setDate(current.getDate() + 1);
     }
     current.setHours(0, 0, 0, 0);
 
     let safety = 0;
-    while (cycleDates.length < 12 && safety < 5000) {
-      safety++;
-      const dateStr = getLocalDateString(current);
-      if (isGroupTrainingDay(current, dateStr)) {
-        cycleDates.push(dateStr);
+    if (isMonthly) {
+      while (safety < 5000) {
+        safety++;
+        const dateStr = getLocalDateString(current);
+        if (dateStr > endDateStr) break;
+        if (isGroupTrainingDay(current, dateStr)) {
+          cycleDates.push(dateStr);
+        }
+        current.setDate(current.getDate() + 1);
       }
-      current.setDate(current.getDate() + 1);
+      lastCycleEndDate = endDateStr;
+    } else {
+      while (cycleDates.length < 12 && safety < 5000) {
+        safety++;
+        const dateStr = getLocalDateString(current);
+        if (isGroupTrainingDay(current, dateStr)) {
+          cycleDates.push(dateStr);
+        }
+        current.setDate(current.getDate() + 1);
+      }
+      lastCycleEndDate = cycleDates.length > 0 ? cycleDates[cycleDates.length - 1] : getEndDateOneMonthLater(startDateStr);
     }
 
-    lastCycleEndDate = cycleDates[cycleDates.length - 1];
     cycles.push({
       cycleIndex: c,
-      sessions: cycleDates
+      sessions: cycleDates,
+      isMonthly,
+      startDate: startDateStr,
+      endDate: isMonthly ? endDateStr : (cycleDates.length > 0 ? cycleDates[cycleDates.length - 1] : getEndDateOneMonthLater(startDateStr))
     });
   }
 
@@ -266,8 +290,14 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
   const currentCycle = cycles[P - 1];
   const lastSessionDate = currentCycle ? (currentCycle.sessions[currentCycle.sessions.length - 1] || "") : "";
   
-  // A cycle is expired if its last session is already in the past (strictly < todayStr)
-  const isExpired = player.status === "مجمّد" ? false : (lastSessionDate ? lastSessionDate < todayStr : false);
+  // A cycle is expired if its end date or last session is already in the past
+  const isExpired = player.status === "مجمّد" ? false : (
+    currentCycle ? (
+      currentCycle.isMonthly 
+        ? currentCycle.endDate < todayStr 
+        : (lastSessionDate ? lastSessionDate < todayStr : false)
+    ) : false
+  );
   
   // Let's populate cycleSessions details for the active cycle P
   const cycleSessions = [];
@@ -333,7 +363,10 @@ const getPlayerSubscriptionDetails = (player, trainings, attendance, payments) =
     cycleIndex: P,
     isUnpaid: false,
     isExpired,
-    isActive: !isExpired
+    isActive: !isExpired,
+    startDate: currentCycle?.startDate || "",
+    endDate: currentCycle?.endDate || "",
+    isMonthly: currentCycle?.isMonthly || false
   };
 }
 
@@ -745,16 +778,64 @@ const AnimIcon = ({ type, size = 20, color = "#C4B5FD" }) => {
 };
 
 /* ═══ CONSTANTS ═══════════════════════════════════════ */
-const PRICE_LIST = { subscription: 350, bus: 200, uniform: 180, bag: 95, jersey: 120 };
+const PRICE_LIST = { subscription: 350, subscription_monthly: 350, bus: 200, uniform: 180, bag: 95, jersey: 120 };
 const PAY_TYPES = {
-  subscription: { label: "اشتراك شهري", icon: "💳", color: "#A855F7" },
-  bus:          { label: "اشتراك الباص",  icon: "🚌", color: "#3B82F6" },
-  uniform:      { label: "لبس / طقم",   icon: "👕", color: "#06B6D4" },
-  bag:          { label: "شنطة",         icon: "🎒", color: "#F59E0B" },
-  jersey:       { label: "قميص رسمي",   icon: "🏷️", color: "#10B981" },
+  subscription:         { label: "اشتراك (12 حصة)", icon: "💳", color: "#A855F7" },
+  subscription_monthly: { label: "اشتراك شهري",       icon: "📅", color: "#8B5CF6" },
+  bus:                  { label: "اشتراك الباص",   icon: "🚌", color: "#3B82F6" },
+  uniform:              { label: "لبس / طقم",    icon: "👕", color: "#06B6D4" },
+  bag:                  { label: "شنطة",          icon: "🎒", color: "#F59E0B" },
+  jersey:               { label: "قميص رسمي",    icon: "🏷️", color: "#10B981" },
 };
 const ATT_C = { حاضر: "#10B981", غائب: "#EF4444", بعذر: "#F59E0B" };
 const fmtMoney = n => Number(n || 0).toLocaleString("en-US") + " ر.س";
+
+const isSubscriptionPayment = pay => pay && (pay.type === "subscription" || pay.type === "subscription_monthly" || pay.subType === "sessions_12" || pay.subType === "monthly");
+
+const getEndDateOneMonthLater = (startDateStr) => {
+  if (!startDateStr) return "";
+  const parts = startDateStr.split("-");
+  if (parts.length !== 3) return startDateStr;
+  const d = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+  d.setMonth(d.getMonth() + 1);
+  return getLocalDateString(d);
+};
+
+const getSubscriptionDatesForPayment = (pay, player, groupTrainings = []) => {
+  if (!pay) return { startDate: "", endDate: "", subType: "sessions_12" };
+  const startDateStr = pay.startDate ? (typeof pay.startDate === "string" ? pay.startDate.substring(0, 10) : getLocalDateString(pay.startDate)) : (pay.date ? (typeof pay.date === "string" ? pay.date.substring(0, 10) : getLocalDateString(pay.date)) : getLocalDateString(new Date()));
+  
+  if (pay.type === "subscription_monthly" || pay.subType === "monthly") {
+    const endDateStr = pay.endDate ? (typeof pay.endDate === "string" ? pay.endDate.substring(0, 10) : getLocalDateString(pay.endDate)) : getEndDateOneMonthLater(startDateStr);
+    return { startDate: startDateStr, endDate: endDateStr, subType: "monthly" };
+  } else {
+    if (pay.endDate) {
+      return { startDate: startDateStr, endDate: typeof pay.endDate === "string" ? pay.endDate.substring(0, 10) : getLocalDateString(pay.endDate), subType: "sessions_12" };
+    }
+    const parts = startDateStr ? startDateStr.split("-") : [];
+    if (parts.length === 3) {
+      let current = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+      current.setHours(0,0,0,0);
+      const cycleDates = [];
+      let safety = 0;
+      const ARABIC_DAYS = ["الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة", "السبت"];
+      while (cycleDates.length < 12 && safety < 5000) {
+        safety++;
+        const dStr = getLocalDateString(current);
+        const dayName = ARABIC_DAYS[current.getDay()];
+        const isMatch = groupTrainings.some(tr => tr.type === "match" && ((tr.isRecurring === false ? (tr.date && compareDates(tr.date, dStr)) : (tr.days && tr.days.includes(dayName)))));
+        if (!isMatch) {
+          const isTraining = groupTrainings.some(tr => tr.type !== "match" && ((tr.isRecurring === false ? (tr.date && compareDates(tr.date, dStr)) : (tr.days && tr.days.includes(dayName)))));
+          if (isTraining) cycleDates.push(dStr);
+        }
+        current.setDate(current.getDate() + 1);
+      }
+      const endDateStr = cycleDates.length > 0 ? cycleDates[cycleDates.length - 1] : getEndDateOneMonthLater(startDateStr);
+      return { startDate: startDateStr, endDate: endDateStr, subType: "sessions_12" };
+    }
+    return { startDate: startDateStr, endDate: getEndDateOneMonthLater(startDateStr), subType: "sessions_12" };
+  }
+};
 
 const parseExpenseNote = (expense) => {
   if (!expense || !expense.note) {
@@ -2277,7 +2358,7 @@ function AdminOverview({ players, coaches, groups, payments, attendance = [], t,
                 const totalPast = sd.attendedCount + sd.absentCount + sd.excusedCount;
                 
                 // Get last payment date
-                const playerPays = (payments || []).filter(pay => String(pay.playerId) === String(p.id) && pay.type === "subscription");
+                const playerPays = (payments || []).filter(pay => String(pay.playerId) === String(p.id) && isSubscriptionPayment(pay));
                 const sortedPays = [...playerPays].sort((a, b) => {
                   const da = typeof a.date === "string" ? a.date.substring(0, 10) : getLocalDateString(a.date);
                   const db = typeof b.date === "string" ? b.date.substring(0, 10) : getLocalDateString(b.date);
@@ -2860,7 +2941,7 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
     const totalPast = subDetails.attendedCount + subDetails.absentCount + subDetails.excusedCount;
     const computedAttendancePct = totalPast > 0 ? Math.round((subDetails.attendedCount / totalPast) * 100) : 100;
 
-    const playerPays = (payments || []).filter(pay => String(pay.playerId) === String(p.id) && pay.type === "subscription");
+    const playerPays = (payments || []).filter(pay => String(pay.playerId) === String(p.id) && isSubscriptionPayment(pay));
     const sortedPays = [...playerPays].sort((a, b) => {
       const da = typeof a.date === "string" ? a.date.substring(0, 10) : getLocalDateString(a.date);
       const db = typeof b.date === "string" ? b.date.substring(0, 10) : getLocalDateString(b.date);
@@ -3299,7 +3380,7 @@ function AdminPlayers({ players, setPlayers, groups, parents, evals, coaches, t,
 ══════════════════════════════════════════════════════════ */
 const ACADEMY_WEBSITE = "https://najd-academy-system.vercel.app/";
 
-function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
+function InvoiceModal({ payment, allPayments, players, parents, trainings, onClose }) {
   const invoiceRef = useRef(null);
   const isExpense = !!payment.purchaser;
   const { items, note: parsedNote } = isExpense ? parseExpenseNote(payment) : { items: [], note: "" };
@@ -3315,6 +3396,8 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
   const invoiceNum = isExpense
     ? `EXP-${payment.id.replace(/\D/g, '').slice(-8).padStart(8, '0')}`
     : `INV-${payment.id.replace(/\D/g, '').slice(-8).padStart(8, '0')}`;
+  
+  const mainSubDates = (!isExpense && isSubscriptionPayment(payment)) ? getSubscriptionDatesForPayment(payment, player, trainings) : null;
 
   const TERMS = [
     "لا يحق للمشترك المطالبة بأي مبلغ في حال أراد عدم الاكمال في التدريبات لأي ظرف كان.",
@@ -3560,6 +3643,14 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
                   <div style={{ fontSize: 10, color: '#999', marginBottom: 2 }}>المجموع</div>
                   <div style={{ fontSize: 14, fontWeight: 900, color: '#7C3AED' }}>{fmtMoney(totalAmount)}</div>
                 </div>
+                {mainSubDates && mainSubDates.startDate && (
+                  <div style={{ gridColumn: 'span 3', background: '#ffffff', padding: '10px 14px', borderRadius: 8, border: '1px solid #d8b4fe', marginTop: 4 }}>
+                    <div style={{ fontSize: 10, color: '#6D28D9', fontWeight: 800, marginBottom: 2 }}>📅 فترة فاعلية الاشتراك ({mainSubDates.subType === 'monthly' ? 'اشتراك شهري' : '12 حصة'})</div>
+                    <div style={{ fontSize: 12.5, fontWeight: 800, color: '#1a1a2e' }}>
+                      تاريخ البداية: <span style={{ color: '#7C3AED' }}>{mainSubDates.startDate}</span> &nbsp;|&nbsp; تاريخ النهاية: <span style={{ color: '#7C3AED' }}>{mainSubDates.endDate}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -3599,12 +3690,18 @@ function InvoiceModal({ payment, allPayments, players, parents, onClose }) {
                   ))
                 ) : (
                   relatedPayments.map((p, idx) => {
-                    const pt = PAY_TYPES[p.type];
+                    const pt = PAY_TYPES[p.type] || { icon: "💳", label: p.type, color: "#A855F7" };
+                    const pIsSub = isSubscriptionPayment(p);
+                    const pSubDates = pIsSub ? getSubscriptionDatesForPayment(p, player, trainings) : null;
                     return (
                       <tr key={p.id} style={{ background: idx % 2 === 0 ? '#fff' : '#fbf8ff', borderBottom: '1px solid #ede9f9' }}>
                         <td style={{ padding: '11px 14px', fontSize: 12, fontWeight: 700, color: '#666', width: 36 }}>{idx + 1}</td>
                         <td style={{ padding: '11px 14px', fontSize: 13, fontWeight: 700, color: '#1a1a2e' }}>{pt?.icon} {pt?.label || p.type}</td>
-                        <td style={{ padding: '11px 14px', fontSize: 11, color: '#777' }}>{p.month}{p.note ? ` — ${p.note}` : ''}</td>
+                        <td style={{ padding: '11px 14px', fontSize: 11, color: '#777' }}>
+                          {p.month}
+                          {pSubDates && pSubDates.startDate ? ` (من ${pSubDates.startDate} إلى ${pSubDates.endDate})` : ''}
+                          {p.note ? ` — ${p.note}` : ''}
+                        </td>
                         <td style={{ padding: '11px 14px', fontSize: 14, fontWeight: 900, color: '#7C3AED', textAlign: 'left' }}>{fmtMoney(p.amount)}</td>
                       </tr>
                     );
@@ -3757,14 +3854,22 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
     
     if (form.id) {
       // Edit payment
+      const pType = form.type || form.types[0];
+      const startDateStr = form.date ? (typeof form.date === "string" ? form.date.substring(0, 10) : getLocalDateString(form.date)) : getLocalDateString(new Date());
+      const subTypeVal = pType === "subscription_monthly" ? "monthly" : (pType === "subscription" ? "sessions_12" : null);
+      const endDateVal = pType === "subscription_monthly" ? getEndDateOneMonthLater(startDateStr) : (pType === "subscription" ? getSubscriptionDatesForPayment({ type: pType, date: startDateStr, startDate: startDateStr }, player).endDate : null);
+
       const updated = {
         id: form.id,
         playerId: form.playerId,
         playerName: player?.name || "",
         coachId: form.coachId,
         coachName: coach?.name || (form.coachId === "none" ? "الإدارة" : ""),
-        type: form.type || form.types[0],
-        amount: parseFloat(form.amount) || prices[form.type] || PRICE_LIST[form.type] || 0,
+        type: pType,
+        subType: subTypeVal,
+        startDate: startDateStr,
+        endDate: endDateVal,
+        amount: parseFloat(form.amount) || prices[pType] || PRICE_LIST[pType] || 0,
         month: getMonthFromDate(form.date),
         date: form.date,
         note: form.note
@@ -3772,18 +3877,27 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
       setPayments(ps => ps.map(x => x.id === form.id ? updated : x));
     } else {
       // Add payment
-      const newPayments = form.types.map(type => ({
-        id: `pay${Date.now()}-${type}`,
-        playerId: form.playerId,
-        playerName: player?.name || "",
-        coachId: form.coachId,
-        coachName: coach?.name || (form.coachId === "none" ? "الإدارة" : ""),
-        type: type,
-        amount: prices[type] || PRICE_LIST[type] || 0,
-        month: getMonthFromDate(form.date),
-        date: form.date,
-        note: form.note
-      }));
+      const newPayments = form.types.map(type => {
+        const startDateStr = form.date ? (typeof form.date === "string" ? form.date.substring(0, 10) : getLocalDateString(form.date)) : getLocalDateString(new Date());
+        const subTypeVal = type === "subscription_monthly" ? "monthly" : (type === "subscription" ? "sessions_12" : null);
+        const endDateVal = type === "subscription_monthly" ? getEndDateOneMonthLater(startDateStr) : (type === "subscription" ? getSubscriptionDatesForPayment({ type, date: startDateStr, startDate: startDateStr }, player).endDate : null);
+
+        return {
+          id: `pay${Date.now()}-${type}`,
+          playerId: form.playerId,
+          playerName: player?.name || "",
+          coachId: form.coachId,
+          coachName: coach?.name || (form.coachId === "none" ? "الإدارة" : ""),
+          type: type,
+          subType: subTypeVal,
+          startDate: startDateStr,
+          endDate: endDateVal,
+          amount: prices[type] || PRICE_LIST[type] || 0,
+          month: getMonthFromDate(form.date),
+          date: form.date,
+          note: form.note
+        };
+      });
       setPayments(ps => [...ps, ...newPayments]);
     }
     setModal(false);
@@ -3810,6 +3924,9 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
     const parentEmail = parent?.email || player?.email || "—";
     const parentPassword = (parent?.password && parent.password !== '••••••••' && !parent.password.includes(':') && parent.password.length <= 20) ? parent.password : (player?.password && player.password !== '••••••••' && !player.password.includes(':') && player.password.length <= 20) ? player.password : ((parent?.phone || player?.phone) ? `najd_${(parent?.phone || player?.phone).replace(/\D/g, '').slice(-4)}` : `najd_${(player?.id || '').replace(/\D/g, '').slice(-4) || '0000'}`);
 
+    const isSub = isSubscriptionPayment(pay);
+    const subDates = isSub ? getSubscriptionDatesForPayment(pay, player) : null;
+
     const msgText = [
       "نادي نجد الرياضي | سند استلام إلكتروني",
       "عميلنا العزيز،",
@@ -3817,6 +3934,7 @@ function AdminPayments({ payments, setPayments, players, coaches, parents, price
       "تفاصيل السند:",
       `- رقم الفاتورة: ${invoiceNo}`,
       `- بند الدفع: ${typeLabel}`,
+      (isSub && subDates?.startDate) ? `- فترة الاشتراك: من ${subDates.startDate} إلى ${subDates.endDate}` : "",
       `- المبلغ المدفوع: ${fmtMoney(pay.amount)}`,
       `- تاريخ الإصدار: ${dateStr}`,
       `- الشهر المالي: ${pay.month}`,
@@ -4627,7 +4745,7 @@ function AdminReports({ players, coaches, groups, payments, attendance, evals, t
           const coach = coaches.find(c => c.groupId === p.groupId);
           const playerPayments = filterPayments().filter(pay => pay.playerId === p.id);
           const totalPaid = playerPayments.reduce((sum, pay) => sum + pay.amount, 0);
-          const hasSub = playerPayments.some(pay => pay.type === "subscription");
+          const hasSub = playerPayments.some(pay => isSubscriptionPayment(pay));
           return {
             "الاسم": p.name,
             "العمر": p.age,
@@ -5396,7 +5514,7 @@ function CoachPlayers({ myPlayers, group, evals, t, trainings, attendance, payme
     const totalPast = subDetails.attendedCount + subDetails.absentCount + subDetails.excusedCount;
     const computedAttendancePct = totalPast > 0 ? Math.round((subDetails.attendedCount / totalPast) * 100) : 100;
 
-    const playerPays = (payments || []).filter(pay => String(pay.playerId) === String(p.id) && pay.type === "subscription");
+    const playerPays = (payments || []).filter(pay => String(pay.playerId) === String(p.id) && isSubscriptionPayment(pay));
     const sortedPays = [...playerPays].sort((a, b) => {
       const da = typeof a.date === "string" ? a.date.substring(0, 10) : getLocalDateString(a.date);
       const db = typeof b.date === "string" ? b.date.substring(0, 10) : getLocalDateString(b.date);
@@ -5691,7 +5809,22 @@ function CoachPayments({ coachId, myPlayers, payments, setPayments, prices, coac
   const save   = () => {
     const player = myPlayers.find(p => p.id === form.playerId);
     const coach  = coaches.find(c => c.id === coachId);
-    setPayments(ps => [...ps, { ...form, id: `pay${Date.now()}`, coachId, coachName: coach?.name || "", playerName: player?.name || "", amount: prices[form.type] || PRICE_LIST[form.type] || 0, month: getMonthFromDate(form.date) }]);
+    const startDateStr = form.date ? (typeof form.date === "string" ? form.date.substring(0, 10) : getLocalDateString(form.date)) : getLocalDateString(new Date());
+    const subTypeVal = form.type === "subscription_monthly" ? "monthly" : (form.type === "subscription" ? "sessions_12" : null);
+    const endDateVal = form.type === "subscription_monthly" ? getEndDateOneMonthLater(startDateStr) : (form.type === "subscription" ? getSubscriptionDatesForPayment({ type: form.type, date: startDateStr, startDate: startDateStr }, player).endDate : null);
+
+    setPayments(ps => [...ps, { 
+      ...form, 
+      id: `pay${Date.now()}`, 
+      coachId, 
+      coachName: coach?.name || "", 
+      playerName: player?.name || "", 
+      subType: subTypeVal,
+      startDate: startDateStr,
+      endDate: endDateVal,
+      amount: prices[form.type] || PRICE_LIST[form.type] || 0, 
+      month: getMonthFromDate(form.date) 
+    }]);
     setModal(false);
   };
   return (
@@ -5820,7 +5953,7 @@ function ParentOverview({ child, childGroup, childCoach, childPays, childEvals, 
   const totalPast = subDetails.attendedCount + subDetails.absentCount + subDetails.excusedCount;
   const computedAttendancePct = totalPast > 0 ? Math.round((subDetails.attendedCount / totalPast) * 100) : 100;
 
-  const childSubPays = (childPays || []).filter(pay => pay.type === "subscription");
+  const childSubPays = (childPays || []).filter(pay => isSubscriptionPayment(pay));
   const sortedChildPays = [...childSubPays].sort((a, b) => {
     const da = typeof a.date === "string" ? a.date.substring(0, 10) : getLocalDateString(a.date);
     const db = typeof b.date === "string" ? b.date.substring(0, 10) : getLocalDateString(b.date);
@@ -6249,7 +6382,7 @@ function ParentScores({ child, childEvals, childCoach, t }) {
 
 function ParentAttendance({ child, childAtt, childPays, t }) {
   // Find the first subscription payment date
-  const childSubPays = (childPays || []).filter(pay => pay.type === "subscription");
+  const childSubPays = (childPays || []).filter(pay => isSubscriptionPayment(pay));
   const sortedSubPays = [...childSubPays].sort((a, b) => {
     const da = typeof a.date === "string" ? a.date.substring(0, 10) : getLocalDateString(a.date);
     const db = typeof b.date === "string" ? b.date.substring(0, 10) : getLocalDateString(b.date);

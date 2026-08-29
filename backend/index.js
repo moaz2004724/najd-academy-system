@@ -384,31 +384,27 @@ app.post('/api/players', async (req, res) => {
 
 app.post('/api/payments', async (req, res) => {
   try {
-    const { id, playerId, playerName, coachId, coachName, type, month, amount, date, note } = req.body;
+    const { id, playerId, playerName, coachId, coachName, type, month, amount, date, note, subType, startDate, endDate } = req.body;
+    const paymentData = {
+      playerId, 
+      playerName, 
+      coachId, 
+      coachName, 
+      type, 
+      month, 
+      amount, 
+      date: date ? new Date(date) : new Date(), 
+      note,
+      subType: subType || null,
+      startDate: startDate ? new Date(startDate) : null,
+      endDate: endDate ? new Date(endDate) : null
+    };
     const payment = await prisma.payment.upsert({
       where: { id: id || 'new' },
-      update: { 
-        playerId, 
-        playerName, 
-        coachId, 
-        coachName, 
-        type, 
-        month, 
-        amount, 
-        date: new Date(date), 
-        note 
-      },
+      update: paymentData,
       create: { 
         id, 
-        playerId, 
-        playerName, 
-        coachId, 
-        coachName, 
-        type, 
-        month, 
-        amount, 
-        date: new Date(date), 
-        note 
+        ...paymentData
       }
     });
     res.json(payment);
